@@ -1,9 +1,58 @@
 # Experiments
 
-Code to reproduce the experiments in Sec. 4 of [SurVAE Flows: Surjections to Bridge the Gap between VAEs and Flows](https://arxiv.org/abs/2007.02731).  
-We perform 3 sets of experiments:
-1. **Toy Experiments:** We show how absolute value surjections may be used to enforce symmetries on the learned density.
-1. **Point Cloud Experiments:** We show how sorting surjections and stochastic permutation layers may be used to enforce permutation invariance on the learned density.
-1. **Image Experiments:** We compare max pooling surjections and tensor slicing surjections for downsampling in a flow model for image data.
+### SIR example
+### training 
+```commandline
+python train_SIR.py --device cpu --AIS True --bound_surjection True --num_flows 20 --model_num 100 --iteration 126 --temp 2000 --eval_every 25 --lr 4e-4
+python train_SIR.py --device cpu --AIS False --bound_surjection False --num_flows 20 --model_num 100 --iteration 126 --temp 2000 --eval_every 25 --lr 4e-4
+```
 
-More details are given in each sub-folder.
+### evaluation
+To evaluate ATVI and VI models, 
+```commandline
+python Evaluate.py --dataset SIR --setting BTAT --resume False --num_flows 20 --device cpu 
+python Evaluate.py --dataset SIR --setting BFAF --bound_surjection False --AIS False  --resume False --num_flows 20 --device cpu 
+```
+To evaluate ABC samples, 
+```commandline
+python Evaluate_ABC_SIR.py 
+```
+
+## SEIR example
+### training 
+To train SEIR example, 
+```commandline
+ python train_SEIR.py --model_num 1 --lr 8e-4  --batch_size 8 --eval_every 25 --dataset SEIR --smoothing 1400 --bound_surjection True --AIS True --iteration 451 --temp 10 --smoothing2 300 --eval_size 1024 --num_flows 20
+ python train_SEIR.py --model_num 1 --lr 8e-4  --batch_size 8 --eval_every 25 --dataset SEIR --smoothing 1400 --bound_surjection False --AIS False --iteration 451 --smoothing2 300 --eval_size 1024 --num_flows 20
+```
+
+### evaluation
+To evaluate ATVI and VI models, 
+```commandline
+python Evaluate.py --dataset SEIR --setting BTAT --resume False --num_flows 20 
+python Evaluate.py --dataset SEIR --setting BFAF --resume False --num_flows 20 --bound_surjection False 
+```
+To evaluate ABC-SMC-MNN samples, 
+```commandline
+python Evaluate_ABC_SEIR.py 
+```
+
+## MSIR example
+### training 
+To train MSIR example, 
+```commandline
+python train.py --eval_every 25 --lr 6e-3 --iteration 401 --num_flows 20 --bound_surjection True --AIS True --resume False --model_num 50 --batch_size 8
+python train.py --eval_every 50 --lr 6e-3 --iteration 301 --num_flows 20 --bound_surjection False --AIS False --resume False --model_num 50 --batch_size 16
+```
+
+### evaluation
+To evaluate ATVI and VI models, 
+```commandline
+python Evaluate.py --dataset SEIR --setting BTAT --resume False --num_flows 20 
+python Evaluate.py --dataset SEIR --setting BFAF --resume False --num_flows 20 --bound_surjection False 
+```
+To evaulate MCMC smaples, 
+```commandline
+python Evaluate_MCMC.py 
+```
+
