@@ -272,7 +272,7 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
                 weight = 0
                 w = w * weight
         loss = loss - 1 * (idx_loss.mean()) * w
-
+    """
     if args.AIS :
 
         if itr >= 101:
@@ -285,8 +285,8 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
             w_norm = w_norm / torch.sum(w_norm)
             loss = w_norm * (logw)
             #print(loss.mean())
-            loss = -1 * loss.mean() * 20
-
+            loss = -1 * loss.mean() * 80
+    """
 
     nll = kl_dive
 

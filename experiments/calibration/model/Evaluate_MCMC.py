@@ -46,7 +46,7 @@ def HPD(args, samples, model_num):
             param_cov = 0
 
             temp_hpd, _, _, temp_modes = hpd_grid(sample=temp[:, j], alpha=0.05)
-            tm = np.mean(np.square(temp[:, j] - true[j]*1e2)) #/ temp.shape[0]
+            tm = np.mean(np.square(np.mean(temp[:, j]) - true[j]*1e2)) #/ temp.shape[0]
             a, b = temp_hpd[0]
             c = temp_modes[0]
             hpd_l.append(a/1e2)
@@ -114,13 +114,15 @@ al = []
 coverage = []
 ii = 0
 print(log_path)
+
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 for f in filenames:
-    if ii<46:
-        ii += 1
-        continue
-    print(f)
+    #if ii<46:
+    #    ii += 1
+    #    continue
+    #print(f)
     try:
         truex, data_shape = get_data(args, model_num=ii)
         ii += 1
@@ -142,7 +144,7 @@ for f in filenames:
         param_sample = param_sample[np.linspace(0, param_sample.shape[0] - 1, num=5000).astype(int), :]
         tl, tr, tmu, tmse, tcoverage = HPD(args, [param_sample], model_num=ii-1)
         print(res)
-
+    #except NotImplementedError as e:
     except Exception as e:
         print("Failed account {}".format(ii))
         continue

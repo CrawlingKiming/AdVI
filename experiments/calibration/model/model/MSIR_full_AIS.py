@@ -53,7 +53,7 @@ def plain_convert(x):
 def get_ladder(args):
     if args.AIS:
         idx_ladder = [10, 15, 20]#[,args.num_flows // 2, args.num_flows]
-        temp_ladder = [12, 2.5, 1]#16#[9, 6, 3.5, 1]#[args.temp, 1]#[12,6,3,1]
+        temp_ladder = [9, 2.5, 1]#16#[9, 6, 3.5, 1]#[args.temp, 1]#[12,6,3,1]
         w_ladder_ls = [[3, 1, 1]]
         args.w_ladder = w_ladder_ls
     else:
@@ -297,7 +297,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         weight = 1
         if args.bound_surjection:
             if idx == len(idx_ladder)-1:
-                weight = 1#((1e3 **(itr/380))**1)
+                weight = 1
                 if itr < 301 :
                     weight = 0
             else :
@@ -307,7 +307,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
                     if itr > 300:
                         weight = 0.00
                 elif itr > 225 :
-                    weight = 0.00 #원래 250, 200, 200 # 400 300 400
+                    weight = 0.00
 
                 #if idx == 2 :
                 #    if itr > 301:
@@ -325,12 +325,11 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         #    weight = 0
         w = w_ladder[idx] * weight
 
-
         if args.bound_surjection:
             anneal = (1 - 1 / T)
             if anneal < 0 :
                 anneal = 0.0
-            loss2 = (log_probz ) * anneal - log_probq
+            loss2 = (log_probz) * anneal - log_probq
             if itr > 301:
                 loss2 = loss2 - contribution
 
@@ -344,8 +343,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
 
     if eval and not recover:
         return samples, PSIS_diagnos
-        #return samples
-    #print("recover3")
+
     if itr > 301:
         logw = idx_loss
         w = torch.exp(logw - torch.max(logw))

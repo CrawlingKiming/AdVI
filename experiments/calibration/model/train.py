@@ -54,9 +54,8 @@ model_id = get_model_id(args)
 
 exp_writer = Experiment_Writing(args, data_id, model_id)
 real_batch = args.batch_size
-#speed_list = [14]#[33,34,35,43,49]
-#for model_num in speed_list:
-for model_num in range(args.model_num):
+
+for model_num in range(0, args.model_num):
     args.batch_size = real_batch
 
     torch.cuda.empty_cache()
@@ -65,9 +64,11 @@ for model_num in range(args.model_num):
 
     mycan, model = get_model(args, data_shape=data_shape) # on args.device
     optimizer = Adam(list(model.parameters()), lr=args.lr)
-    #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=25, eta_min=6e-4)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
+
+    scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.03, total_iters=20)
+    scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
                                             lr_lambda=lambda epoch: 0.996 ** epoch)
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[scheduler1, scheduler2], milestones=[20])
     st_itr = 0
 
     if args.resume :
@@ -80,7 +81,7 @@ for model_num in range(args.model_num):
 
         lambd = np.load("../data/MSIR_lambda.npy")
         groundtruth = np.load("../data/ground_truth.npy")
-        st_itr = 226
+        st_itr = 175
 
     try :
         for itr in range(st_itr, args.iteration):
@@ -102,11 +103,11 @@ for model_num in range(args.model_num):
             end = time.time()
             runtime = end - start
             exp_writer.loss_store(loss=loss, nll=nll, itr=itr, time=runtime, model_num=model_num)
-            #record loss, nll
+            # record loss, nll
 
             with torch.no_grad():
                 if itr % args.eval_every == 0:
-
+                    # print(scheduler.get_last_lr())
                     if itr == 0 :
                         lambd = np.load("../data/MSIR_lambda.npy")
                         groundtruth = np.load("../data/ground_truth.npy")
@@ -125,8 +126,6 @@ for model_num in range(args.model_num):
                     exp_writer.param_ls_img_store(params_ls, model_num=model_num, itr=itr)
 
                     now = datetime.now()
-
-                    # print("now =", now)
 
                     # dd/mm/YY H:M:S
                     dt_string = now.strftime("%d.%m.%Y %H.%M.%S")

@@ -8,12 +8,44 @@ import torch
 # For calculating HPD interval
 from model.subclass.HPD import hpd_grid
 
+import arviz as az
+
 def q_return(samples):
     samples_mean = np.mean(samples, axis=0)
     samples_min = np.percentile(samples, 2.5, axis=0)
     samples_max = np.percentile(samples, 97.5, axis=0)
-
+    #print(samples_min, samples_max)
     return samples_min, samples_mean, samples_max
+
+def hpd_return(samples):
+    #plt.hist(samples[:,0])
+    #plt.show()
+    #print(samples.shape)
+    hpd_min = []
+    #hpd_mean = []
+    hpd_max = []
+    #print(az.hdi(samples[:,0],hdi_prob=0.95))
+    #print(np.percentile(samples, 50, axis=0))
+    #a, b = az.hdi(samples[:, 0], hdi_prob=0.95)
+    #print(a)
+    #raise ValueError
+    N, T = samples.shape
+    for t in range(T):
+        temp_hpd = az.hdi(samples[:,t],hdi_prob=0.95)
+        hpd_min_e, hpd_max_e = temp_hpd
+        #hpd_mean_e = temp_modes[0]
+        hpd_min.append(hpd_min_e)
+        hpd_max.append(hpd_max_e)
+        #hpd_mean.append(hpd_mean_e)
+    hpd_min = np.asarray(hpd_min)
+    hpd_max = np.asarray(hpd_max)
+    #hpd_mean = np.asarray(hpd_mean)
+    #print(hpd_max)
+    #print(hpd_min)
+    #raise ValueError
+    hpd_mean = np.percentile(samples, 50, axis=0)
+    return hpd_min, hpd_mean, hpd_max
+
 
 class Experiment_Writing():
     no_log_keys = ['project', 'name',
@@ -26,7 +58,7 @@ class Experiment_Writing():
         raise NotImplementedError
 
     def forward_img_store(self, samples, truex, data_ground, burden_estimate, model_num):
-        ylim_upper = np.load("../data/Extra/forplot.npy")
+        #ylim_upper = np.load("../data/Extra/forplot.npy")
         samples, cases_prob, new_r = samples
         B = samples.shape[0]
 
@@ -38,7 +70,11 @@ class Experiment_Writing():
         data_samples = data_samples.view((n * 500, 118, 6))
 
         data_ground = np.sum(data_ground, axis=2)
-        samples_min, samples_mean, samples_max = q_return(np.sum(data_samples.detach().cpu().numpy(), axis=2))
+        samples_min, samples_mean, samples_max = hpd_return(np.sum(data_samples.detach().cpu().numpy(), axis=2))#
+        #print(samples_mean.shape)
+        #samples_min, samples_mean, samples_max = q_return(np.sum(data_samples.detach().cpu().numpy(), axis=2))
+        #raise ValueError
+        #print(samples_mean.shape)
         cover_num = 0
         for ti in range(118):
             if ((data_ground[0][ti] < samples_max[ti]) and (data_ground[0][ti] > samples_min[ti])):
@@ -53,7 +89,7 @@ class Experiment_Writing():
         ax.plot(data_ground[0][:], "bo", markersize=2)
         ax.set_xlabel('Weeks', fontsize=15)
         ax.set_ylabel('Severe cases (All)', fontsize=15)
-        ax.set_ylim([0, ylim_upper[model_num]])
+        #ax.set_ylim([0, ylim_upper[model_num]])
         ax.tick_params(axis='both', which='major', labelsize=14)
         ax.tick_params(axis='both', which='minor', labelsize=10)
         # plt.show()
@@ -63,8 +99,11 @@ class Experiment_Writing():
 
         groundtruth_sum = np.sum(burden_estimate, axis=2)
         samples_sum = np.sum(samples, axis=2)
-        samples_sum_min, samples_sum_mean, samples_sum_max = q_return(samples_sum)
+        #samples_sum_min, samples_sum_mean, samples_sum_max = q_return(samples_sum)
+        samples_sum_min, samples_sum_mean, samples_sum_max = hpd_return(samples_sum)
 
+        #print(groundtruth_sum[0])
+        #raise ValueError
         cover_num = 0
         for ti in range(samples_sum_max.shape[0]):
             if ((groundtruth_sum[0][ti] <= samples_sum_max[ti]) and (groundtruth_sum[0][ti] >= samples_sum_min[ti])):
@@ -248,6 +287,7 @@ class SEIR_plotting():
         print(cover_num/53)
         """
         print("I_w MSE: {}".format(np.mean(np.square(samples_mean - truex))))
+        np.save("./assets/BFAF_mean_samples", samples_mean)
         #t = I_w - samples_mean #[:, np.newaxis]
         #plt.hist(t[:,25])
         #plt.show()
@@ -258,6 +298,7 @@ class SEIR_plotting():
 
     def param_ls_img_store(self, params, extra=1):
         #np.save("ABC_param_samples", params)
+        np.save("./assets/BFAF_param_samples", params)
         #print(len(params))
         for p_idx in range(len(params)):
             sample_list = []
@@ -322,25 +363,35 @@ class SIR_plotting():
     def forward_img_store(self, samples, truex, groundtruth, model_num):
         truex = truex.detach().cpu().numpy()
         samples = samples.detach().cpu().numpy()
-        samples = samples[:, :17, :]
-        truex= truex[:17, :]
-        groundtruth = groundtruth[:17, :]
-        #truex = truex.detach().cpu().numpy()
-        #samples = samples.detach().cpu().numpy()
-        samples_mean = np.mean(samples, axis=0)
-        samples_min = np.percentile(samples, 2.5, axis=0)
-        samples_max = np.percentile(samples, 97.5, axis=0)
+        A, B, C =samples.shape
+
+        samples = samples[:, :18, :] + np.random.randn(A, B, C) * 0.1
+        truex= truex[:18, :]
+        groundtruth = groundtruth[:18, :]
+
+        samples_min, samples_mean, samples_max = hpd_return(samples[:, :, -2])#
+
+        cover_num = 0
+        for ti in range(1, truex.shape[0]):
+
+            if (truex[ti, -2] <= samples_max[ti]) and (truex[ti, -2] >= samples_min[ti]):
+                cover_num += 1
 
         fig, ax = plt.subplots()
 
-        ax.plot(samples_mean[:, -2], color="gray")
-        ax.plot(samples_min[:, -2], "--", color="gray")
-        ax.plot(samples_max[:, -2], "--", color="gray")
+        ax.plot(samples_mean, color="gray")
+        ax.plot(samples_min, "--", color="gray")
+        ax.plot(samples_max, "--", color="gray")
         ax.plot(truex[:, -2], "rx", markersize=8, label="Infected")
 
-        ax.plot(samples_mean[:, -1], color="gray")
-        ax.plot(samples_min[:, -1], "--", color="gray")
-        ax.plot(samples_max[:, -1], "--", color="gray")
+        samples_min, samples_mean, samples_max = hpd_return(samples[:, :, -1])#
+        for ti in range(1, truex.shape[0]):
+            if (truex[ti, -1] <= samples_max[ti]) and (truex[ti, -1] >= samples_min[ti]):
+                cover_num += 1
+
+        ax.plot(samples_mean, color="gray")
+        ax.plot(samples_min, "--", color="gray")
+        ax.plot(samples_max, "--", color="gray")
         ax.plot(truex[:, -1], "go", markersize=8, label="recovered")
 
         x = np.arange(0, 17, 1)
@@ -352,16 +403,6 @@ class SIR_plotting():
         ax.set_ylabel('Number', fontsize=18)
         ax.legend()
 
-
-        cover_num = 0
-        for ti in range(truex.shape[0]):
-
-            if (truex[ti, -2] <= samples_max[ti, -2]) and (truex[ti, -2] >= samples_min[ti, -2]):
-                cover_num += 1
-
-        for ti in range(truex.shape[0]):
-            if (truex[ti, -1] <= samples_max[ti, -1]) and (truex[ti, -1] >= samples_min[ti, -1]):
-                cover_num += 1
 
         plt.savefig(os.path.join(self.log_path, "./res_img/Forwardsamples_model_{}.png".format(model_num)),
                     bbox_inches='tight')
@@ -414,7 +455,7 @@ class SIR_plotting():
             temp_hpd, _, _, temp_modes = hpd_grid(sample=temp[:, j], alpha=0.05)
             a, b = temp_hpd[0]
             c = temp_modes[0]
-            tm = np.sqrt(np.mean(np.square(temp[:, j] - ans[j])))
+            tm = np.sqrt(np.mean(np.square(np.mean(temp[:, j]) - ans[j])))
 
             mse.append(tm)
             hpd_l.append(a)

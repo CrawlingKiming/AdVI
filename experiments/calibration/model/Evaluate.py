@@ -42,7 +42,7 @@ def HPD(args, samples, model_num=None, log_path = None):
         samples = samples[-1]
 
         temp = samples.cpu().detach().numpy()
-        #np.save("BFAF", temp)
+        #np.save("./assets/BTAT", temp)
         SEIR_writer = SEIR_plotting(log_path=log_path)
         SEIR_writer.param_ls_img_store(params=[temp])
         temp = temp * 1e6
@@ -71,7 +71,7 @@ def HPD(args, samples, model_num=None, log_path = None):
 
             try :
                 temp_hpd, _, _, temp_modes = hpd_grid(sample=temp[:, j], alpha=0.05)
-                tm = np.mean(np.square(temp[:, j] - true[j]*1e2))
+                tm = np.mean(np.square(np.mean(temp[:, j]) - true[j]*1e2))
                 a, b = temp_hpd[0]
                 c = temp_modes[0]
             except Exception:
@@ -85,7 +85,7 @@ def HPD(args, samples, model_num=None, log_path = None):
             hpd_r.append(b/1e2)
             modes_mu.append(c/1e2)
             mse.append(tm/1e4)
-            #print(tm)
+            print("MSE : {}".format(tm/1e4))
             if a/1e2 < true[j] and b/1e2 > true[j]:
                 param_cov +=1
 
@@ -123,6 +123,7 @@ def for_samples(args, samples, truex, model_num=1, log_path=None):
 
         SEIR_writer.forward_img_store(samples, truex=truex[:, 2].detach().cpu().numpy(), extra=model_num)
         #print(samples_age_prop.shape)
+        print(np.mean(samples_age_prop, axis=0)*100)
         res = np.mean(np.square((np.mean(samples_age_prop, axis=0)*100-age_perc)))
         age_result.append(res)
         return res
@@ -169,17 +170,17 @@ ii = 0
 
 if args.dataset == "SIR":
     assert len(filenames) == 100
-    args.batch_size = 256
+    args.eval_size = 2048
 
 if args.dataset == "SEIR":
     args.smoothing = 1 # ONly for computation.
     args.smoothing2 = 1
-    args.batch_size = 4096
+    args.eval_size = 4096
 
 if args.dataset == "MSIR":
     #print(len(filenames))
     assert len(filenames) == 50
-    args.batch_size = 256
+    args.eval_size = 500
 
 
 

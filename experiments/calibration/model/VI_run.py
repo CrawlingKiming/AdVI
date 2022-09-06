@@ -227,7 +227,7 @@ class Experiment_Writing():
             #    os.path.join("./results/MSIR/gensamples", "generated_sampled_epoch{}_interval{}.png".format(epoch, i)),
             #    temp)
 
-            print(np.mean(temp, axis=0))
+            #print(np.mean(temp, axis=0))
             true_beta = [1.30537122, 3.11852393, 0.03206678, 3.24118948, 0.31400672, 0.09410381]
 
             fig, axs = plt.subplots(3, 4, constrained_layout=True)
@@ -376,7 +376,6 @@ class SIR_Experiment_Writing():
         cover_num = 0
 
         for ti in range(truex.shape[0]):
-
             if (truex[ti, 1] <= samples_max[ti, 1]) and (truex[ti, 1] >= samples_min[ti, 1]):
                 cover_num += 1
 
@@ -566,8 +565,10 @@ class SEIR_Experiment_Writing():
         truex = np.reshape(truex, (1, 53))
         #print(truex.shape)
         #print(samples.shape)
-        print(np.mean(np.square((age_class-age_true)*100)))
-        print(np.mean(np.square(I_w - truex)))
+        #print(np.mean(np.square((age_class-age_true)*100)))
+        #print(np.mean(np.square(I_w - truex)))
+        print("I_w MSE: {}".format(np.mean(np.square(samples_mean - truex))))
+        print("Age MSE: {}".format(np.mean(np.square(100 *age_class_mean - 100 * age_true))))
         """
         cover_num = 0
         for ti in range(truex.shape[0]):

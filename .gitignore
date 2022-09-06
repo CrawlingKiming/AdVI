@@ -267,5 +267,12 @@ cython_debug/
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm
 
 *.png
+*.pt
+
 experiments/calibration/model/.ipynb_checkpoints
 experiments/calibration/model/assets
+experiments/calibration/model/results/MSIR/boot_model
+experiments/calibration/model/results/MSIR/check_model
+experiments/calibration/model/results/*/log
+
+
