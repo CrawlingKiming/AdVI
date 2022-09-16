@@ -2,6 +2,8 @@
 
 > Official code for [Fast Compartment Model Calibration using Annealed and Transformed Variational Inference]
 
+![image1](title/Model_Outline2.PNG)
+
 ATVI adopts surjective function and temperature annealing to avoid inferential challenges in a naive  
 VI approach in calibration tasks. 
 

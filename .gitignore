@@ -232,6 +232,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.idea
 
 # Spyder project settings
 .spyderproject
@@ -266,7 +267,8 @@ cython_debug/
 
 # End of https://www.toptal.com/developers/gitignore/api/python,pycharm
 
-*.png
+experiments/*.png
+
 *.pt
 
 experiments/calibration/model/.ipynb_checkpoints
