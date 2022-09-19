@@ -4,8 +4,7 @@
 
 ![image1](title/Model_Outline2.PNG)
 
-ATVI adopts surjective function and temperature annealing to avoid inferential challenges in a naive  
-VI approach in calibration tasks. 
+ATVI adopts surjective function and temperature annealing to avoid inferential challenges in a naive VI approach in calibration tasks. 
 
 This code relies on the NF model package from the SurVAE library.  To start with, you must install the SurVAE library. 
 
@@ -15,6 +14,9 @@ In the folder containing `setup.py`, run
 ```
 pip install .
 ```
+
+### Experiments
+To train or evaluate model, please check /experiments.
 
 #### Acknowledgements
 
