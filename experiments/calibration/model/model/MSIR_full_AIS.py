@@ -52,8 +52,8 @@ def plain_convert(x):
 
 def get_ladder(args):
     if args.AIS:
-        idx_ladder = [10, 15, 20]#[,args.num_flows // 2, args.num_flows]
-        temp_ladder = [9, 2.5, 1]#16#[9, 6, 3.5, 1]#[args.temp, 1]#[12,6,3,1]
+        idx_ladder = [10, 15, args.num_flows]
+        temp_ladder = [12, 2.5, 1] ##[12,6,3,1]
         w_ladder_ls = [[3, 1, 1]]
         args.w_ladder = w_ladder_ls
     else:
@@ -140,10 +140,6 @@ class CanModel(torch.nn.Module):
 
         return sampled_x_ls, log_probq_ls, log_probp_ls, log_probz_ls
 
-
-#optimizer1 = Adam(list(model1.parameters()), lr=args.lr)
-#optimizer2 = Adamax(list(model2.parameters()), lr=args.lr)
-
 def build_MSIR_model(args, data_shape):
     idx_ladder, temp_ladder, w_ladder_ls = get_ladder(args)
     D = data_shape
@@ -182,12 +178,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(num_samples = args.batch_size, model = model)
     if eval:
         sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(num_samples=args.eval_size, model=model)
-    #if recover :
-    #    sampled_x_ls, _, _, _ = mycan(num_samples = args.batch_size, model = model, plain = True)
-        #sampled_x_ls = sampled_x_ls.to(args.device)
-    #if i == 0:
-    #    sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(model = model model, plain=True, ladder=idx_ladder)
-    #print(sampled_x_ls[0])
+
     sampled_x = torch.cat(sampled_x_ls, 0)
     gt = truex.clone()
     gt = gt.to(args.device)
@@ -235,11 +226,6 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     for j in range(B):
         cases_age[j, :, :] *= rho[j]
 
-    # print(cases_age.shape) # B * t * I
-    #cases1 = torch.sum(cases_age[:, :, 0: 3], dim=2).unsqueeze(2)
-    #cases2 = torch.sum(cases_age[:, :, [3]], dim=2).unsqueeze(2)
-    #cases3 = torch.sum(cases_age[:, :, 4: 6], dim=2).unsqueeze(2)
-    #cases_fit = torch.cat((cases1, cases2, cases3), 2)  # B * t * 3
     cases_fit = cases_age
 
     cases_fit_chunked = torch.chunk(cases_fit, len(idx_ladder), dim=0)
@@ -270,14 +256,10 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         cases_prob = cases_prob_ls[-1]
 
         return samples, cases_prob, new_r
-    #print(cases_prob.shape, gt.shape)
-    #raise ValueError
+
     nb = torch.distributions.negative_binomial.NegativeBinomial(total_count=new_r, probs=cases_prob)
     kl_dive = nb.log_prob(gt)
     kl_dive = kl_dive.view(-1, 118 * 6)
-    #kl_dive = kl_dive.view(-1, 118 * 6)
-    #print(new_r.shape)
-    #########################################
 
     kl_dive_con = torch.sum(kl_dive, dim=1)
     kl_dive_ls = torch.chunk(kl_dive_con, len(idx_ladder), dim=0) # Per ladder, we get this one
@@ -298,15 +280,15 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         if args.bound_surjection:
             if idx == len(idx_ladder)-1:
                 weight = 1
-                if itr < 301 :
+                if itr < 300:
                     weight = 0
             else :
                 if idx == 1:
                     if itr < 225:
                         weight = 0
-                    if itr > 300:
+                    if itr > 299:
                         weight = 0.00
-                elif itr > 225 :
+                elif itr > 224:
                     weight = 0.00
 
                 #if idx == 2 :
@@ -320,9 +302,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
 
         else :
             weight = 1
-        #print("recover2")
-        #if idx > 1 and itr < 200:
-        #    weight = 0
+
         w = w_ladder[idx] * weight
 
         if args.bound_surjection:
@@ -330,7 +310,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
             if anneal < 0 :
                 anneal = 0.0
             loss2 = (log_probz) * anneal - log_probq
-            if itr > 301:
+            if itr > 299:
                 loss2 = loss2 - contribution
 
 
@@ -349,13 +329,12 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         w = torch.exp(logw - torch.max(logw))
         w_norm = w
         w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
-        #w_norm = IS_truncation(w)
         w_norm = torch.tensor(data=w_norm, device=args.device)
         w_norm = w_norm / torch.sum(w_norm)
         loss = w_norm * (logw)
-        #print(loss.mean())
+
         loss = -1 * loss.mean() * 20
-        #print(loss)
+
 
     nll = kl_dive
 
@@ -409,11 +388,6 @@ def only_forward(param_sample, args):
     for j in range(B):
         cases_age[j, :, :] *= rho[j]
 
-    # print(cases_age.shape) # B * t * I
-    #cases1 = torch.sum(cases_age[:, :, 0: 3], dim=2).unsqueeze(2)
-    #cases2 = torch.sum(cases_age[:, :, [3]], dim=2).unsqueeze(2)
-    #cases3 = torch.sum(cases_age[:, :, 4: 6], dim=2).unsqueeze(2)
-    #cases_fit = torch.cat((cases1, cases2, cases3), 2)  # B * t * 3
     cases_fit = cases_age
 
     cases_fit_chunked = torch.chunk(cases_fit, len(idx_ladder), dim=0)
@@ -422,9 +396,6 @@ def only_forward(param_sample, args):
     for j in range(B):
         cases_fit[j, :, :] /= r[j]
 
-    #new_r = r.repeat(1, t.shape[1] * 3)
-
-    #new_r = new_r.view(B, t.shape[1], 3)
     new_r = r.repeat(1, t.shape[1] * 6)
     new_r = new_r.view(B, t.shape[1], 6)
     cases_prob = cases_fit / (1 + cases_fit)

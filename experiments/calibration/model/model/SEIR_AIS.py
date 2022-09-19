@@ -1,17 +1,13 @@
-from .subclass.layers import ShiftBijection, ScaleBijection
-from survae.distributions import ConvNormal2d, StandardNormal, StandardUniform
-from survae.transforms import Logit, SoftplusInverse, Sigmoid
-
+import numpy as np
 import torch
 
+from survae.distributions import StandardNormal
+from survae.transforms import Sigmoid
 from .SEIR_fullModel import ODE_Solver as ODE_Solver
 from .SEIR_fullModel import SEIR as SEIR
-from .subclass.diagnostic import PSIS_sampling
-from .subclass.InverseFlow import SqFlow, Build_Shuffle_Order_Transform, MSIR_Flow, Build_Shuffle_Transform, Build_Shuffle_Order_5_Transform
-from .subclass.surjective import BoundSurjection, BoundSurjection_S
-
-import math
-import numpy as np
+from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Transform, Build_Shuffle_Order_5_Transform
+from .subclass.layers import ShiftBijection, ScaleBijection
+from .subclass.surjective import BoundSurjection_S
 
 
 def plain_convert(x):
@@ -85,13 +81,8 @@ class CanModel(torch.nn.Module):
                 entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
 
             else :
-                #_,_, temp = self.pretrained.log_prob(x=z_concat)
-                #temp = torch.chunk(temp, len(self.idx_ladder), dim=0)[-1].detach().cpu().numpy()
-                #np.save("unconst", temp)
                 z_concat, entropy = self.bound_q(z_concat)
-                #temp =torch.chunk(z_concat,len(self.idx_ladder),dim=0)[-1].detach().cpu().numpy()
 
-                #_, entropy = self.bound_q(z_concat)
 
                 entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
                 log_probp_ls = entropy_ls
@@ -102,8 +93,9 @@ class CanModel(torch.nn.Module):
         sampled_x_ls = torch.chunk(sampled_x, len(self.idx_ladder), dim=0)
 
         temp = sampled_x_ls[-1].detach().cpu().numpy()
+        ## Used for plotting..
         np.save("const_BFAF", temp)
-        #print(temp)
+        #####################
 
         return sampled_x_ls, log_probq_ls, log_probp_ls, log_probz_ls
 
@@ -214,28 +206,8 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
     e1 = args.smoothing
     e2 = args.smoothing2
 
-    #ce = torch.nn.CrossEntropyLoss()
-
-    #normal_dist = torch.distributions.normal.Normal(loc=gt, scale=gt*0.2/3)
-    #e1 = gt[[0]]*0.1 + 1000
-    #e1 = 700
-    #print(e1[0])
-    #print(torch.diag(e1[0]).shape)
     m = torch.distributions.normal.Normal(gt, e1)#MultivariateNormal(gt, torch.diag(e1[0])[:,-1,-1].repeat(B,1))
-    #I_w = torch.clamp(I_w, min=0.0)
-    #for j in range(B):
-    #    I_w[j, :] /= r[j]
-    #I_w_prob = I_w / (1+I_w)
 
-    #new_r = r.repeat(1, 53) # B , 53
-    #new_a0 = a0.repeat(1, 53) # B, 53
-    #print(new_r)
-    #print(I_w_prob)
-
-    #kl_dive1 = -1 * (0.5 * p1 / (e1 ** 2))
-    #base2 = -1 * math.log(e2 * math.sqrt(math.pi * 2))
-    #I_w = torch.clamp(I_w, min=0.0)
-    #nb = torch.distributions.negative_binomial.NegativeBinomial(total_count=new_r, logits=torch.log(I_w))
     dir = torch.distributions.dirichlet.Dirichlet(concentration=e2 * I_age_prop)
     if eval:
         I_w_chunked = torch.chunk(I_w, len(idx_ladder), dim=0)
@@ -246,8 +218,7 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
         # print(samples_Iw[-1].shape)
         samples = (samples_Iw, samples_age_prop)
         return samples
-    #base1 = -1 * math.log(e1 * math.sqrt(math.pi * 2))
-    #p1 = torch.sum(torch.square((gt - I_w)) + base1, dim=1)
+
     kl_dive1 = torch.sum(m.log_prob(I_w), dim=1)#-1 * (0.5 * p1 / (e1**2))#torch.sum(nb.log_prob(gt), dim=1)
     kl_dive2 = dir.log_prob(age_perc)
     #print(kl_dive1.shape, kl_dive2.shape)
@@ -272,21 +243,6 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
                 weight = 0
                 w = w * weight
         loss = loss - 1 * (idx_loss.mean()) * w
-    """
-    if args.AIS :
-
-        if itr >= 101:
-            logw = idx_loss
-            w = torch.exp(logw - torch.max(logw))
-            #w_norm = w
-            w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
-            #w_norm = IS_truncation(w)
-            w_norm = torch.tensor(data=w_norm, device=args.device)
-            w_norm = w_norm / torch.sum(w_norm)
-            loss = w_norm * (logw)
-            #print(loss.mean())
-            loss = -1 * loss.mean() * 80
-    """
 
     nll = kl_dive
 

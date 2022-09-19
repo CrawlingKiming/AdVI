@@ -352,11 +352,7 @@ class SIR_Experiment_Writing():
         samples_max = np.percentile(samples, 97.5, axis=0)
 
         fig, ax = plt.subplots()
-        #ax[0].plot(samples_mean[:, 0], color="red")
-        #ax[0].plot(samples_min[:, 0], "--", color="red")
-        #ax[0].plot(samples_max[:, 0 ], "--", color="red")
 
-        #ax.plot(samples_mean[:, 1], color="green")
         ax.plot(groundtruth[:, 1], color="green")
         ax.plot(samples_min[:, 1], "--", color="green")
         ax.plot(samples_max[:, 1], "--", color="green")
@@ -405,15 +401,6 @@ class SIR_Experiment_Writing():
         #print(temp.shape)
         hpd_mu = []
         modes_mu = []
-
-
-        #print(modes_mu)
-
-        # print(yset.shape)
-        # print(temp.shape)
-        #np.save(
-        #    os.path.join("./results/MSIR/gensamples", "generated_sampled_epoch{}_interval{}.png".format(epoch, i)),
-        #    temp)
 
         fig, axs = plt.subplots(1, 3)
         #fig.suptitle('SIR function')
