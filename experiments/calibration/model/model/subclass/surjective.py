@@ -156,7 +156,7 @@ class BoundSurjection_S(Surjection):
         return tempz, s1mask#,overbounded
 
     def sig_ldj(self, z):
-        return torch.sigmoid_(8 * (-1 * torch.abs(z) + 1.5))
+        return torch.sigmoid_(5 * (-1 * torch.abs(z) + 1.5))
 
 
 class BoundSurjection_sig(Surjection):

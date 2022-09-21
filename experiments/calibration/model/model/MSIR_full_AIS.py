@@ -6,14 +6,12 @@ from MSIR_fullModel import ODE_Solver as ODE_Solver
 from survae.distributions import StandardNormal
 from survae.transforms import Sigmoid
 from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Order_Transform
+from .subclass.diagnostic import PSIS_sampling
 from .subclass.layers import ShiftBijection, ScaleBijection
-from .subclass.surjective import BoundSurjection, BoundSurjection_S, BoundSurjection_M, BoundSurjection_Max, BoundSurjection_Max_sample
-from .subclass.diagnostic import PSIS, PSIS_sampling, IS_truncation
+from .subclass.surjective import BoundSurjection_S
+
 
 def plain_convert(x):
-    #print(x)
-    #raise ValueError
-    #x[:, [8]] = 0.2 * x[:, [8]]
     b = x[:, [0]]
     phi = x[:, [1]]
     rho = x[:, [2]]
@@ -47,8 +45,6 @@ def plain_convert(x):
     x = x.repeat(B,1)
 
     return x
-
-
 
 def get_ladder(args):
     if args.AIS:
@@ -111,20 +107,11 @@ class CanModel(torch.nn.Module):
         log_probp_ls = torch.chunk(torch.log(10 * torch.ones(size=(z_concat.shape[0],),
                                                         device=z_concat.device) / (8 * 4**6)),len(self.idx_ladder), dim=0)
 
-        if self.bound_q :
-            param = False
-            if param:
-                print("Param Sampling")
-                z_concat, entropy = self.bound_t(z_concat)
-                print(z_concat.shape)
-                entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
-
-            else :
-                z_concat, entropy = self.bound_q(z_concat)
-
-                entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
-                log_probp_ls = entropy_ls
-                log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, log_probp_ls))
+        if self.bound_q:
+            z_concat, entropy = self.bound_q(z_concat)
+            entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
+            log_probp_ls = entropy_ls
+            log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, log_probp_ls))
 
         log_probp_transformed, _, sampled_x = self.pretrained.log_prob(x=z_concat)
         log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, torch.chunk(log_probp_transformed, len(self.idx_ladder), dim=0)))
@@ -135,8 +122,6 @@ class CanModel(torch.nn.Module):
                     sampled_x_ls = []
                     sampled_x = plain_convert(z)
                     sampled_x_ls.append(sampled_x)
-
-                #sampled_x_ls.append(sampled_x)
 
         return sampled_x_ls, log_probq_ls, log_probp_ls, log_probz_ls
 
@@ -175,7 +160,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     truex = observation
     idx_ladder, temp_ladder, w_ladder_ls = get_ladder(args)
 
-    sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(num_samples = args.batch_size, model = model)
+    sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(num_samples = args.batch_size, model=model)
     if eval:
         sampled_x_ls, log_probq_ls, log_probp_ls, z_ls = mycan(num_samples=args.eval_size, model=model)
 
@@ -269,11 +254,11 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
 
     loss = 0.0
 
-    PSIS_diagnos = []
+    Pd = []
     for idx in range(len(idx_ladder)):
         log_probz = z_ls[idx]
         log_probq = log_probq_ls[idx]
-        contribution = log_probp_ls[idx]
+        #_ = log_probp_ls[idx]
         kl_dive = kl_dive_ls[idx]
         T = temp_ladder[idx]
         weight = 1
@@ -307,14 +292,10 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
 
         if args.bound_surjection:
             anneal = (1 - 1 / T)
-            if anneal < 0 :
-                anneal = 0.0
-            loss2 = (log_probz) * anneal - log_probq
-            if itr > 299:
-                loss2 = loss2 - contribution
-
-
-        else :
+            loss2 = (log_probz) * anneal - log_probq #- _
+            #if itr > 300:
+            #    loss2 = loss2 - _
+        else:
             loss2 = (log_probz) * (1 - 1 / T) - log_probq
 
         idx_loss = loss2 + kl_dive / T
@@ -322,9 +303,9 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         loss = loss - 1 * (idx_loss.mean()) * w
 
     if eval and not recover:
-        return samples, PSIS_diagnos
+        return samples, Pd
 
-    if itr > 301:
+    if itr > 299:
         logw = idx_loss
         w = torch.exp(logw - torch.max(logw))
         w_norm = w
@@ -332,9 +313,7 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         w_norm = torch.tensor(data=w_norm, device=args.device)
         w_norm = w_norm / torch.sum(w_norm)
         loss = w_norm * (logw)
-
         loss = -1 * loss.mean() * 20
-
 
     nll = kl_dive
 

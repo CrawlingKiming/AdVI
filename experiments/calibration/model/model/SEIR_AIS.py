@@ -73,20 +73,10 @@ class CanModel(torch.nn.Module):
                                                         device=z_concat.device) / (5 * 4**6)),len(self.idx_ladder), dim=0)
         #np.save("BFAF", temp)
         if self.bound_q :
-            param = False
-            if param:
-                print("Param Sampling")
-                z_concat, entropy = self.bound_t(z_concat)
-                #print(z_concat.shape)
-                entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
-
-            else :
-                z_concat, entropy = self.bound_q(z_concat)
-
-
-                entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
-                log_probp_ls = entropy_ls
-                log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, log_probp_ls))
+            z_concat, entropy = self.bound_q(z_concat)
+            entropy_ls = torch.chunk(entropy, len(self.idx_ladder), dim=0)
+            log_probp_ls = entropy_ls
+            log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, log_probp_ls))
 
         log_probp_transformed, _, sampled_x = self.pretrained.log_prob(x=z_concat)
         log_probq_ls = list(map(lambda x, y: x - y, log_probq_ls, torch.chunk(log_probp_transformed, len(self.idx_ladder), dim=0)))
@@ -97,7 +87,7 @@ class CanModel(torch.nn.Module):
         np.save("const_BFAF", temp)
         #####################
 
-        return sampled_x_ls, log_probq_ls, log_probp_ls, log_probz_ls
+        return sampled_x_ls, log_probq_ls, log_probz_ls, log_probp_ls
 
 
 def build_SEIR_model(args, data_shape):
@@ -226,13 +216,13 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
     kl_dive_ls = torch.chunk(kl_dive, len(idx_ladder), dim=0)  # Per ladder, we get this one
     for idx in range(len(idx_ladder)):
         weight = 1
-        log_probp = log_probp_ls[idx]
+        log_probz = z_ls[idx]#log_probp_ls[idx]
         log_probq = log_probq_ls[idx]
         kl_dive = kl_dive_ls[idx]
         T = temp_ladder[idx]
         w = w_ladder[idx]
 
-        loss2 = log_probp * (2 - 1/T) - log_probq
+        loss2 = log_probz * (1 - 1/T) - log_probq
         idx_loss = loss2 + kl_dive/ T
         if args.AIS :
             if itr < 100 and idx == len(idx_ladder) -1:

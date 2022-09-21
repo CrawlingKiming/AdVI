@@ -55,7 +55,7 @@ model_id = get_model_id(args)
 exp_writer = Experiment_Writing(args, data_id, model_id)
 real_batch = args.batch_size
 
-for model_num in range(20, args.model_num):
+for model_num in range(0, args.model_num):
     args.batch_size = real_batch
 
     torch.cuda.empty_cache()
@@ -81,9 +81,9 @@ for model_num in range(20, args.model_num):
 
         lambd = np.load("../data/MSIR_lambda.npy")
         groundtruth = np.load("../data/ground_truth.npy")
-        st_itr = 175
+        st_itr = 224
 
-    try :
+    try:
         for itr in range(st_itr, args.iteration):
             if itr > 299:
                 args.batch_size = 256
@@ -95,7 +95,10 @@ for model_num in range(20, args.model_num):
                 loss.backward()
                 max_norm = 4e-3
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-                jj = 0
+
+                if itr in [225, 300]: #ev breaks
+                    optimizer.zero_grad()
+
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
