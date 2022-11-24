@@ -119,13 +119,11 @@ import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 for f in filenames:
-    #if ii<46:
-    #    ii += 1
-    #    continue
-    #print(f)
     try:
         truex, data_shape = get_data(args, model_num=ii)
         ii += 1
+        if ii != 47:
+            continue
 
         data_path = os.path.join(log_path, f)
         param_sample = np.genfromtxt(data_path, delimiter=',', skip_header=True)
@@ -144,7 +142,7 @@ for f in filenames:
         param_sample = param_sample[np.linspace(0, param_sample.shape[0] - 1, num=5000).astype(int), :]
         tl, tr, tmu, tmse, tcoverage = HPD(args, [param_sample], model_num=ii-1)
         print(res)
-    #except NotImplementedError as e:
+
     except Exception as e:
         print("Failed account {}".format(ii))
         continue

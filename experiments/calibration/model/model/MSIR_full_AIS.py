@@ -22,7 +22,6 @@ def plain_convert(x):
     b4 = x[:, [7]]
     b5 = x[:, [8]]
     b6 = x[:, [9]]
-    #beta = beta * 4
     b5 = b5 - 0.4
 
     x = torch.cat((b, phi, rho, r, b1, b2, b3, b4, b5, b6), 1)
@@ -49,7 +48,7 @@ def plain_convert(x):
 def get_ladder(args):
     if args.AIS:
         idx_ladder = [10, 15, args.num_flows]
-        temp_ladder = [12, 2.5, 1] ##[12,6,3,1]
+        temp_ladder = [12, 3, 1] ##[12,6,3,1]
         w_ladder_ls = [[3, 1, 1]]
         args.w_ladder = w_ladder_ls
     else:
@@ -64,8 +63,6 @@ def get_ladder(args):
 def Bound_T():
     transforms = []
 
-    #transforms += [ScaleBijection(scale=torch.tensor([[0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9]]))]
-    #transforms += [BoundSurjection()]
     transforms += [ShiftBijection(shift=torch.tensor([[1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]]))]
     transforms += [ScaleBijection(scale=torch.tensor([[1/3, 1/3, 1/3, 1/3, 1/3,
                                                        1/3, 1/3, 1/3, 1/3, 1/3]]))]
@@ -271,10 +268,10 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
                 if idx == 1:
                     if itr < 225:
                         weight = 0
-                    if itr > 299:
-                        weight = 0.00
-                elif itr > 224:
-                    weight = 0.00
+                    if itr > 297:
+                        weight = 0.01
+                elif itr > 222:
+                    weight = 0.01
 
                 #if idx == 2 :
                 #    if itr > 301:

@@ -18,17 +18,9 @@ def q_return(samples):
     return samples_min, samples_mean, samples_max
 
 def hpd_return(samples):
-    #plt.hist(samples[:,0])
-    #plt.show()
-    #print(samples.shape)
     hpd_min = []
     #hpd_mean = []
     hpd_max = []
-    #print(az.hdi(samples[:,0],hdi_prob=0.95))
-    #print(np.percentile(samples, 50, axis=0))
-    #a, b = az.hdi(samples[:, 0], hdi_prob=0.95)
-    #print(a)
-    #raise ValueError
     N, T = samples.shape
     for t in range(T):
         temp_hpd = az.hdi(samples[:,t],hdi_prob=0.95)
@@ -39,10 +31,6 @@ def hpd_return(samples):
         #hpd_mean.append(hpd_mean_e)
     hpd_min = np.asarray(hpd_min)
     hpd_max = np.asarray(hpd_max)
-    #hpd_mean = np.asarray(hpd_mean)
-    #print(hpd_max)
-    #print(hpd_min)
-    #raise ValueError
     hpd_mean = np.percentile(samples, 50, axis=0)
     return hpd_min, hpd_mean, hpd_max
 
@@ -87,11 +75,11 @@ class Experiment_Writing():
         ax.plot(samples_max[:], "--", color="red")
 
         ax.plot(data_ground[0][:], "bo", markersize=2)
-        ax.set_xlabel('Weeks', fontsize=15)
-        ax.set_ylabel('Severe cases (All)', fontsize=15)
+        ax.set_xlabel('Weeks', fontsize=22)
+        ax.set_ylabel('Severe cases (All)', fontsize=22)
         #ax.set_ylim([0, ylim_upper[model_num]])
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        ax.tick_params(axis='both', which='minor', labelsize=10)
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        #ax.tick_params(axis='both', which='minor', labelsize=17)
         # plt.show()
         plt.savefig(os.path.join(self.log_path, "png/Forwardsamples_model_num{}.png".format(model_num)),
                     bbox_inches='tight')
@@ -117,11 +105,11 @@ class Experiment_Writing():
         ax.plot(samples_sum_min[:], "--", color="red")
         ax.plot(samples_sum_max[:], "--", color="red")
         ax.plot(groundtruth_sum[0][:], color="green")
-        ax.set_xlabel('Time (weeks)', fontsize=20)
-        ax.set_ylabel('Disease Burden (All)', fontsize=19)
+        ax.set_xlabel('Time (weeks)', fontsize=22)
+        ax.set_ylabel('Disease Burden (All)', fontsize=22)
         ax.set_ylim(ylim[-1])
-        ax.tick_params(axis='both', which='major', labelsize=14)
-        ax.tick_params(axis='both', which='minor', labelsize=10)
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        #ax.tick_params(axis='both', which='minor', labelsize=17)
 
         plt.savefig(os.path.join(self.log_path, "png/BurdenEstimate_model_num{}.png".format(model_num)),
                     bbox_inches='tight')
@@ -238,6 +226,7 @@ class SEIR_plotting():
         ax[0].set_xlabel('Time (weeks)', fontsize=20)
         ax[0].set_ylim([0.0, 14000])
         ax[0].set_ylabel('Number', fontsize=20)
+        #ax[0].tick_params(axis='both', which='major', labelsize=19)
 
         age_class_x = np.asarray([1,2,3])
         age_true = np.asarray([0.42, 0.30, 0.28])
@@ -274,6 +263,7 @@ class SEIR_plotting():
         ax.set_xlabel('Time (weeks)', fontsize=20)
         ax.set_ylim([0.0, 14000])
         ax.set_ylabel('Number', fontsize=20)
+
 
         plt.savefig(os.path.join(self.log_path, "./res_img/Only_Forwardsamples_model_{}.png".format(extra)),
                     bbox_inches='tight')
@@ -315,20 +305,26 @@ class SEIR_plotting():
 
             axs[0, 0].hist(temp[:, 0], bins=128, edgecolor = 'black', color='gray', alpha=0.3)
             axs[0, 0].set_title(r'$\beta$', size=23)
+            axs[0, 0].tick_params(axis='x', which='major', labelsize=13)
             axs[0, 0].set_xlim([0.5 * 1e-6, 3 * 1e-6])
             axs[0, 1].hist(temp[:, 1],  bins=128, edgecolor = 'black', color='gray', alpha=0.3)
             axs[0, 1].set_title(r'$N_{0}$', size=23)
+            axs[0, 1].tick_params(axis='x', which='major', labelsize=12)
             axs[0, 1].set_xlim([140*1e3, 300 * 1e3]) #130
             axs[0, 2].hist(temp[:, 2],  bins=128, edgecolor = 'black', color='gray', alpha=0.3)
             axs[0, 2].set_title(r'$f_{e}$', size=23)
+            axs[0, 2].tick_params(axis='x', which='major', labelsize=12)
             axs[0, 2].set_xlim([0.0, 0.001])#0.0005
             axs[1, 0].set_title(r'$a_{sh}$', size=23)
             axs[1, 0].set_xlim([0.8, 1.2])
             axs[1, 0].hist(temp[:, 3], bins=128, edgecolor = 'black', color='gray', alpha=0.3)
+            axs[1, 0].tick_params(axis='x', which='major', labelsize=13)
             axs[1, 1].set_title(r'$a_{rt}$', size=23)
             axs[1, 1].set_xlim([0.09, 0.11])#0.09
             axs[1, 1].hist(temp[:, 4],  bins=128, edgecolor = 'black', color='gray', alpha=0.3)
+            axs[1, 1].tick_params(axis='x', which='major', labelsize=13)
             fig.delaxes(axs[1,2])
+
             plt.savefig(os.path.join(os.path.join(self.log_path, "./res_img/param_samples_model_{}.png".format(extra))))
             # plt.close(fig = fig)
             plt.close(fig=fig)
@@ -397,11 +393,12 @@ class SIR_plotting():
         x = np.arange(0, 17, 1)
         ax.xaxis.set_ticks(x)
         ax.set_xticklabels(x+1)
+        ax.tick_params(axis='both', which='major', labelsize=14)
         ax.set_ylim([0.0, 115.0])
 
-        ax.set_xlabel('Time (days)', fontsize=18)
-        ax.set_ylabel('Number', fontsize=18)
-        ax.legend()
+        ax.set_xlabel('Time (days)', fontsize=22)
+        ax.set_ylabel('Number', fontsize=22)
+        ax.legend(loc='upper left', fontsize='x-large')
 
 
         plt.savefig(os.path.join(self.log_path, "./res_img/Forwardsamples_model_{}.png".format(model_num)),

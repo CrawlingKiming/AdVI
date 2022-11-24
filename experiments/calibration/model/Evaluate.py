@@ -117,7 +117,7 @@ def for_samples(args, samples, truex, model_num=1, log_path=None):
     if args.dataset == "SEIR":
         age_result = []
         samples_Iw, samples_age_prop = samples
-        #samples_age_prop = samples_age_prop.cpu().detach().numpy()
+
         age_perc = np.asarray([[42, 30, 28]])
         SEIR_writer = SEIR_plotting(log_path=log_path)
 
@@ -129,8 +129,7 @@ def for_samples(args, samples, truex, model_num=1, log_path=None):
         return res
 
     if (args.dataset == "MSIR") or (args.dataset == "MSIR_full"):
-        #glambd = np.load("../data/MSIR_lambda.npy")
-        #glambd = glambd[0] # 118 * 6
+
         burden_estimate = np.load("../data/ground_truth.npy")
         data_ground = np.load("../data/MSIR_{}.npy".format(model_num))
 
@@ -178,29 +177,26 @@ if args.dataset == "SEIR":
     args.eval_size = 4096
 
 if args.dataset == "MSIR":
-    #print(len(filenames))
     assert len(filenames) == 50
     args.eval_size = 500
 
 
 
 for f in filenames:
-    #    ii +=1
-    #    continue
-
     print(f)
-    try :
+    try:
         truex, data_shape = get_data(args, model_num=ii)
         ii += 1
-
+        if ii != 1:
+            continue
         model_path = os.path.join(log_path, f)
         checkpoint = torch.load(model_path)
         model.load_state_dict(checkpoint['state_dict1'])
 
         samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, eval=True, recover=True, itr=100)
-        res = for_samples(args,samples, truex=truex, model_num=ii-1, log_path=log_path)
+        res = for_samples(args, samples, truex=truex, model_num=ii-1, log_path=log_path)
 
-        params_ls, _, _, _ = mycan(num_samples=5000, model=model)
+        params_ls, _, _, _ = mycan(num_samples=10000, model=model)
         tl, tr, tmu, tmse, tcoverage = HPD(args, params_ls, model_num=ii-1, log_path=log_path)
         print(res)
 

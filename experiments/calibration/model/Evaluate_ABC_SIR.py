@@ -57,6 +57,8 @@ args.batch_size = 256
 if __name__ == "__main__":
 
     for i in range(100):
+        if i != 0:
+            continue
         truex, data_shape = get_data(args, model_num=i)
 
         SIR_writer = SIR_plotting(log_path=log_path)

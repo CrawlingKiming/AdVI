@@ -125,12 +125,9 @@ class BoundSurjection_S(Surjection):
         xx = x.clone()#.detach()
         x_p1 = self.sig_ldj(xx)
 
-        #p = z_p1 / (z_p1 + x_p1)
-        #ldj = 1 * torch.log(p)
-        #ldj = -1 *ldj#-1 * torch.log(ldj)
-        p = s1mask * x_p1 + (1-s1mask)*(1-x_p1)
-        ldj = torch.log(p)
-        ldj = torch.sum(ldj, dim=1)
+        p = s1mask * torch.log(x_p1) + (1-s1mask)*torch.log(1-x_p1)
+        #ldj = torch.log(p)
+        ldj = torch.sum(p, dim=1)
         return x, ldj
 
     def inverse(self, z):
@@ -156,7 +153,7 @@ class BoundSurjection_S(Surjection):
         return tempz, s1mask#,overbounded
 
     def sig_ldj(self, z):
-        return torch.sigmoid_(5 * (-1 * torch.abs(z) + 1.5))
+        return torch.sigmoid_(10 * (-1 * torch.abs(z) + 1.5))
 
 
 class BoundSurjection_sig(Surjection):

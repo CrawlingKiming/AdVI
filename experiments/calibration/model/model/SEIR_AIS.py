@@ -84,7 +84,7 @@ class CanModel(torch.nn.Module):
 
         temp = sampled_x_ls[-1].detach().cpu().numpy()
         ## Used for plotting..
-        np.save("const_BFAF", temp)
+        #np.save("const_BFAF", temp)
         #####################
 
         return sampled_x_ls, log_probq_ls, log_probz_ls, log_probp_ls

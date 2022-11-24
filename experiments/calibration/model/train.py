@@ -65,7 +65,7 @@ for model_num in range(0, args.model_num):
     mycan, model = get_model(args, data_shape=data_shape) # on args.device
     optimizer = Adam(list(model.parameters()), lr=args.lr)
 
-    scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.03, total_iters=20)
+    scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.01, total_iters=20)
     scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
                                             lr_lambda=lambda epoch: 0.996 ** epoch)
     scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[scheduler1, scheduler2], milestones=[20])
@@ -81,22 +81,26 @@ for model_num in range(0, args.model_num):
 
         lambd = np.load("../data/MSIR_lambda.npy")
         groundtruth = np.load("../data/ground_truth.npy")
-        st_itr = 224
+        st_itr = 200
 
     try:
         for itr in range(st_itr, args.iteration):
             if itr > 299:
                 args.batch_size = 256
 
-            model.train()
+            #model.train()
             loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
 
             if itr != 0:
+                if itr == 224:
+                    for m_la in range(10*3):
+                        for param in model.transforms[m_la].parameters():
+                            param.requires_grad = False
                 loss.backward()
                 max_norm = 4e-3
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
 
-                if itr in [225, 300]: #ev breaks
+                if itr in [224, 225, 226, 299, 300, 301]: # mom.
                     optimizer.zero_grad()
 
                 optimizer.step()
