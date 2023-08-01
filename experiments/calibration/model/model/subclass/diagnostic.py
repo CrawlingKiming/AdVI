@@ -61,37 +61,150 @@ def IS_truncation(rs):
     ws = torch.clamp(r_min, min=0.0) + trun#.detach()
     return ws
 
-if __name__ == "__main__":
+def tile(x, n):
+    x_ = x.reshape(-1)
+    x_ = x_.repeat(n)
+    x_ = x_.reshape(n, -1)
+    x_ = x_.transpose(1, 0)
+    x_ = x_.reshape(-1)
+    return x_
+
+import math
+from numbers import Number
+
+import torch
+from torch.distributions import Distribution, constraints
+from torch.distributions.utils import broadcast_all
+
+CONST_SQRT_2 = math.sqrt(2)
+CONST_INV_SQRT_2PI = 1 / math.sqrt(2 * math.pi)
+CONST_INV_SQRT_2 = 1 / math.sqrt(2)
+CONST_LOG_INV_SQRT_2PI = math.log(CONST_INV_SQRT_2PI)
+CONST_LOG_SQRT_2PI_E = 0.5 * math.log(2 * math.pi * math.e)
+
+
+class TruncatedStandardNormal(Distribution):
     """
-    tt = np.asarray([2.6564e-19, 0.0000e+00, 1.8915e-09, 6.8283e-10, 1.4946e-14, 2.6439e-13,
-        4.9561e-15, 3.3311e-23, 3.3128e-17, 6.2369e-15, 9.5742e-33, 0.0000e+00,
-        3.0620e-23, 4.0904e-36, 0.0000e+00, 1.0587e-09, 1.0235e-08, 3.7449e-31,
-        2.3794e-24, 3.9686e-01, 3.7549e-32, 5.1779e-08, 1.2972e-22, 2.7028e-29,
-        7.2263e-23, 1.2651e-20, 4.0362e-19, 4.1048e-10, 8.3817e-07, 2.1784e-07,
-        0.0000e+00, 5.6191e-13, 1.6760e-15, 8.0887e-16, 0.0000e+00, 4.5942e-25,
-        3.6891e-09, 2.9349e-18, 3.6124e-21, 2.4173e-15, 5.1908e-13, 4.9467e-04,
-        1.0242e-22, 1.9271e-12, 1.0511e-01, 1.4090e-15, 4.3390e-10, 2.9071e-34,
-        0.0000e+00, 3.6342e-35, 3.7890e-18, 9.2290e-14, 2.8286e-01, 0.0000e+00,
-        1.1285e-15, 7.5107e-31, 9.5600e-38, 3.1249e-39, 2.1422e-16, 2.2123e-07,
-        1.2481e-26, 1.4196e-05, 1.8736e-08, 0.0000e+00, 9.8074e-10, 0.0000e+00,
-        2.5214e-23, 3.9788e-12, 1.4947e-25, 2.6091e-29, 4.1940e-14, 7.8903e-11,
-        2.8659e-11, 8.9069e-12, 6.0045e-04, 9.2771e-16, 1.0477e-12, 3.4065e-24,
-        0.0000e+00, 2.8549e-06, 2.0319e-08, 1.1712e-12, 8.0258e-11, 7.4522e-20,
-        2.1273e-36, 1.3360e-33, 0.0000e+00, 2.1083e-01, 3.0813e-04, 8.7777e-13,
-        2.0518e-19, 5.6173e-09, 1.5133e-12, 2.0208e-19, 1.3807e-07, 6.0283e-09,
-        1.0025e-18, 2.3038e-17, 4.7584e-06, 0.0000e+00, 0.0000e+00, 2.2210e-04,
-        4.9331e-16, 6.4811e-19, 1.9639e-05, 8.0731e-15, 2.1879e-08, 0.0000e+00,
-        2.1045e-15, 3.6317e-24, 2.6091e-20, 0.0000e+00, 1.3985e-12, 7.0088e-38,
-        2.1113e-19, 2.7310e-08, 0.0000e+00, 1.8064e-13, 6.5297e-07, 1.1269e-19,
-        5.5105e-17, 2.6652e-03, 7.5337e-26, 6.3227e-15, 2.8869e-30, 2.2028e-09,
-        2.1029e-08, 1.9884e-42])
+    Truncated Standard Normal distribution
+    https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
     """
 
-    tt = np.asarray([1,2,3,4,5,10,6,7,8,9,100])
+    arg_constraints = {
+        'a': constraints.real,
+        'b': constraints.real,
+    }
+    has_rsample = True
 
-    #print(np.sum(tt))
-    print(PSIS_sampling(tt))
+    def __init__(self, a, b, validate_args=None):
+        self.a, self.b = broadcast_all(a, b)
+        if isinstance(a, Number) and isinstance(b, Number):
+            batch_shape = torch.Size()
+        else:
+            batch_shape = self.a.size()
+        super(TruncatedStandardNormal, self).__init__(batch_shape, validate_args=validate_args)
+        if self.a.dtype != self.b.dtype:
+            raise ValueError('Truncation bounds types are different')
+        if any((self.a >= self.b).view(-1,).tolist()):
+            raise ValueError('Incorrect truncation range')
+        eps = torch.finfo(self.a.dtype).eps
+        self._dtype_min_gt_0 = eps
+        self._dtype_max_lt_1 = 1 - eps
+        self._little_phi_a = self._little_phi(self.a)
+        self._little_phi_b = self._little_phi(self.b)
+        self._big_phi_a = self._big_phi(self.a)
+        self._big_phi_b = self._big_phi(self.b)
+        self._Z = (self._big_phi_b - self._big_phi_a).clamp_min(eps)
+        self._log_Z = self._Z.log()
+        little_phi_coeff_a = torch.nan_to_num(self.a, nan=math.nan)
+        little_phi_coeff_b = torch.nan_to_num(self.b, nan=math.nan)
+        self._lpbb_m_lpaa_d_Z = (self._little_phi_b * little_phi_coeff_b - self._little_phi_a * little_phi_coeff_a) / self._Z
+        self._mean = -(self._little_phi_b - self._little_phi_a) / self._Z
+        self._variance = 1 - self._lpbb_m_lpaa_d_Z - ((self._little_phi_b - self._little_phi_a) / self._Z) ** 2
+        self._entropy = CONST_LOG_SQRT_2PI_E + self._log_Z - 0.5 * self._lpbb_m_lpaa_d_Z
 
+    @constraints.dependent_property
+    def support(self):
+        return constraints.interval(self.a, self.b)
+
+    @property
+    def mean(self):
+        return self._mean
+
+    @property
+    def variance(self):
+        return self._variance
+
+    @property
+    def entropy(self):
+        return self._entropy
+
+    @property
+    def auc(self):
+        return self._Z
+
+    @staticmethod
+    def _little_phi(x):
+        return (-(x ** 2) * 0.5).exp() * CONST_INV_SQRT_2PI
+
+    @staticmethod
+    def _big_phi(x):
+        return 0.5 * (1 + (x * CONST_INV_SQRT_2).erf())
+
+    @staticmethod
+    def _inv_big_phi(x):
+        return CONST_SQRT_2 * (2 * x - 1).erfinv()
+
+    def cdf(self, value):
+        if self._validate_args:
+            self._validate_sample(value)
+        return ((self._big_phi(value) - self._big_phi_a) / self._Z).clamp(0, 1)
+
+    def icdf(self, value):
+        return self._inv_big_phi(self._big_phi_a + value * self._Z)
+
+    def log_prob(self, value):
+        if self._validate_args:
+            self._validate_sample(value)
+        return CONST_LOG_INV_SQRT_2PI - self._log_Z - (value ** 2) * 0.5
+
+    def rsample(self, sample_shape=torch.Size()):
+        shape = self._extended_shape(sample_shape)
+        p = torch.empty(shape, device=self.a.device).uniform_(self._dtype_min_gt_0, self._dtype_max_lt_1)
+        return self.icdf(p)
+
+
+class TruncatedNormal(TruncatedStandardNormal):
+    """
+    Truncated Normal distribution
+    https://people.sc.fsu.edu/~jburkardt/presentations/truncated_normal.pdf
+    """
+
+    has_rsample = True
+
+    def __init__(self, loc, scale, a, b, validate_args=None):
+        self.loc, self.scale, a, b = broadcast_all(loc, scale, a, b)
+        a = (a - self.loc) / self.scale
+        b = (b - self.loc) / self.scale
+        super(TruncatedNormal, self).__init__(a, b, validate_args=validate_args)
+        self._log_scale = self.scale.log()
+        self._mean = self._mean * self.scale + self.loc
+        self._variance = self._variance * self.scale ** 2
+        self._entropy += self._log_scale
+
+    def _to_std_rv(self, value):
+        return (value - self.loc) / self.scale
+
+    def _from_std_rv(self, value):
+        return value * self.scale + self.loc
+
+    def cdf(self, value):
+        return super(TruncatedNormal, self).cdf(self._to_std_rv(value))
+
+    def icdf(self, value):
+        return self._from_std_rv(super(TruncatedNormal, self).icdf(value))
+
+    def log_prob(self, value):
+        return super(TruncatedNormal, self).log_prob(self._to_std_rv(value)) - self._log_scale
 
 
 

@@ -68,7 +68,10 @@ for model_num in range(0, args.model_num):
     scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.01, total_iters=20)
     scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
                                             lr_lambda=lambda epoch: 0.996 ** epoch)
-    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[scheduler1, scheduler2], milestones=[20])
+    scheduler = scheduler2 #torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[scheduler2], milestones=[20])
+    # BLOCKED
+    # SCHEDULERERERERER
+    #scheduler1,
     st_itr = 0
 
     if args.resume :
@@ -81,7 +84,7 @@ for model_num in range(0, args.model_num):
 
         lambd = np.load("../data/MSIR_lambda.npy")
         groundtruth = np.load("../data/ground_truth.npy")
-        st_itr = 200
+        st_itr = 300
 
     try:
         for itr in range(st_itr, args.iteration):
@@ -92,10 +95,10 @@ for model_num in range(0, args.model_num):
             loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
 
             if itr != 0:
-                if itr == 224:
-                    for m_la in range(10*3):
-                        for param in model.transforms[m_la].parameters():
-                            param.requires_grad = False
+                #if itr == 224:
+                #    for m_la in range(10*3):
+                #        for param in model.transforms[m_la].parameters():
+                #            param.requires_grad = False
                 loss.backward()
                 max_norm = 4e-3
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
@@ -146,8 +149,8 @@ for model_num in range(0, args.model_num):
                                 os.path.join("./results/MSIR/model", '{}_checkpoint_date{}_itr{}_modelnum{}.pt'.format(model_num, dt_string,itr, model_num)))
                     print('')
 
-    #except NotImplementedError as e:
-    except Exception as e:
+    except NotImplementedError as e:
+    #except Exception as e:
         print('')
         print("Error_{} occured".format(e))
         continue

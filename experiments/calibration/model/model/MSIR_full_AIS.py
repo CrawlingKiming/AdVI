@@ -4,8 +4,9 @@ import torch
 from MSIR_fullModel import MSIR as MSIR
 from MSIR_fullModel import ODE_Solver as ODE_Solver
 from survae.distributions import StandardNormal
-from survae.transforms import Sigmoid
-from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Order_Transform
+from survae.transforms import Sigmoid, Logit
+from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Order_Transform, \
+    GaussianModel, Build_Auto_Transform, Build_Spline_Transform
 from .subclass.diagnostic import PSIS_sampling
 from .subclass.layers import ShiftBijection, ScaleBijection
 from .subclass.surjective import BoundSurjection_S
@@ -47,9 +48,9 @@ def plain_convert(x):
 
 def get_ladder(args):
     if args.AIS:
-        idx_ladder = [10, 15, args.num_flows]
-        temp_ladder = [12, 3, 1] ##[12,6,3,1]
-        w_ladder_ls = [[3, 1, 1]]
+        idx_ladder = [args.num_flows // 2, args.num_flows]#[10, 15, args.num_flows]
+        temp_ladder = [3, 1]#[12, 1.25, 1] ##[12,6,3,1]
+        w_ladder_ls = [[3, 1]]#[[3, 1, 1]]
         args.w_ladder = w_ladder_ls
     else:
         idx_ladder = [args.num_flows]
@@ -63,9 +64,13 @@ def get_ladder(args):
 def Bound_T():
     transforms = []
 
-    transforms += [ShiftBijection(shift=torch.tensor([[1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]]))]
-    transforms += [ScaleBijection(scale=torch.tensor([[1/3, 1/3, 1/3, 1/3, 1/3,
-                                                       1/3, 1/3, 1/3, 1/3, 1/3]]))]
+    transforms += [ShiftBijection(shift=torch.tensor([[2, 2, 2, 2, 2, 2, 2, 2, 2, 2]]))]
+    transforms += [ScaleBijection(scale=torch.tensor([[1 / 4, 1 / 4, 1 / 4, 1 / 4, 1 / 4,
+                                                       1 / 4, 1 / 4, 1 / 4, 1 / 4, 1 / 4]]))]
+
+    #transforms += [ShiftBijection(shift=torch.tensor([[1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]]))]
+    #transforms += [ScaleBijection(scale=torch.tensor([[1/3, 1/3, 1/3, 1/3, 1/3,
+    #                                                   1/3, 1/3, 1/3, 1/3, 1/3]]))]
     transforms += [ScaleBijection(scale=torch.tensor([[1, (2*3.14), 1/10, 1, 4, 4, 4, 4, 4, 4]]))]
     transforms += [ShiftBijection(shift=torch.tensor([[0.0, 2, 0., 0.0, 0.0, 0, 0, 0, 0.0, 0.0]]))]
 
@@ -83,6 +88,11 @@ class CanModel(torch.nn.Module):
 
     def __init__(self, idx_ladder, data_shape, pretrained=None, bound_q=None):
         super(CanModel, self).__init__()
+        """
+        pretrained: Should be fixed(or pretrained) flow
+        
+        """
+
 
         self.pretrained = pretrained
         self.bound_q = bound_q
@@ -131,21 +141,32 @@ def build_MSIR_model(args, data_shape):
     if args.bound_surjection:
         pretrained_transforms = Bound_T()
 
-    else :
+    else:
         pretrained_transforms = Sig_T()
 
-    NormalFlow = MSIR_Flow(base_dist=StandardNormal((D,)),
+
+    pretrained = MSIR_Flow(base_dist=StandardNormal((D,)),
                                transforms=pretrained_transforms).to(args.device)
 
-    model1_transforms1 = Build_Shuffle_Order_Transform(D=D, num_flows=args.num_flows, steps=2)
+    if args.gaussian:
+        model1_transforms1 = GaussianModel(StandardNormal((D,)), D, pretrained_transforms)
+        ladd_step = 1
+    else:
+        #model1_transforms1 = Build_Shuffle_Order_Transform(D=D, num_flows=args.num_flows, steps=2)
+        #ladd_step = 3
+        model1_transforms1 = Build_Spline_Transform(D=D, num_bin=16, num_flows=args.num_flows)
+        #model1_transforms1 = Build_Auto_Transform(D=D, num_flows=args.num_flows)
+        ladd_step = 3
     if args.bound_surjection:
-        mycan = CanModel(pretrained=NormalFlow, data_shape=D, idx_ladder=idx_ladder
+        mycan = CanModel(pretrained=pretrained, data_shape=D, idx_ladder=idx_ladder
                         ,bound_q=bound_S).to(args.device)
 
     else:
-        mycan = CanModel(pretrained=NormalFlow, data_shape=D, idx_ladder=idx_ladder).to(args.device)
+        mycan = CanModel(pretrained=pretrained, data_shape=D, idx_ladder=idx_ladder).to(args.device)
 
-    model1 = SqFlow(base_dist=StandardNormal((D,)), transforms=model1_transforms1).to(args.device)
+
+
+    model1 = SqFlow(base_dist=StandardNormal((D,)), transforms=model1_transforms1,ladd_step=ladd_step).to(args.device)
 
     return mycan, model1
 
@@ -166,7 +187,6 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     gt = gt.to(args.device)
     x = sampled_x
 
-    # term = 20 * 52 + 118
     term = 5 * 52 + 118
     tt = torch.linspace(0, term, steps=term + 1, requires_grad=False).to(args.device)
     tt = torch.cat((torch.tensor([0.0], device=args.device), tt[-118:]))
@@ -181,7 +201,6 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     r = x[:, [3]]  # B * 1
     beta = x[:, 4:]
 
-    # print(z_samples.shape)
     # M = z_samples[:, -118:, 0:6]
     S = z_samples[:, -118:, 6:12]
     Is = z_samples[:, -118:, 12:18]
@@ -202,8 +221,6 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     lambd = torch.bmm(beta_t, Y.unsqueeze(-1))
     lambd = lambd.reshape(B, 118, 6)
 
-
-    # z_samples
     cases_age = 0.24 * lambd * S  # B * t * I
     for j in range(B):
         cases_age[j, :, :] *= rho[j]
@@ -215,22 +232,15 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
 
     for j in range(B):
         cases_fit[j, :, :] /= r[j]
-    # cases_fit : B * T * 3
-    #cases_sum = cases_fit.sum(dim=-1)
 
-    #new_r = r.repeat(1, t.shape[1] * 3)
     new_r = r.repeat(1, t.shape[1] * 6)
     new_r = new_r.view(B, t.shape[1], 6)
-    #new_r = new_r.view(B, t.shape[1], 3)
+
     cases_prob = cases_fit / (1 + cases_fit)
 
-    #cases_prob = torch.clamp(cases_prob, min=0.0, max=1.0)
-    #print(cases_prob)
     gt = gt.repeat(B, 1, 1)
-    #gt_sum = gt.sum(dim=-1)
 
     if recover :
-        #print("recover1 ")
         cases_prob_ls = torch.chunk(cases_prob, len(idx_ladder), dim=0)
         new_r_ls = torch.chunk(new_r, len(idx_ladder), dim=0)
 
@@ -259,19 +269,28 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
         kl_dive = kl_dive_ls[idx]
         T = temp_ladder[idx]
         weight = 1
-        if args.bound_surjection:
+        if args.AIS:
             if idx == len(idx_ladder)-1:
                 weight = 1
-                if itr < 300:
+                if itr < 150:
                     weight = 0
-            else :
-                if idx == 1:
-                    if itr < 225:
-                        weight = 0
-                    if itr > 297:
-                        weight = 0.01
-                elif itr > 222:
-                    weight = 0.01
+            if idx == 0 :
+                weight = 1
+                if itr >= 150:
+                    weight = 0
+
+        #    if idx == len(idx_ladder)-1:
+        #        weight = 1
+        #        if itr < 300:
+        #            weight = 0
+        #    else:
+        #        if idx == 1:
+        #            if itr < 225:
+        #                weight = 0
+        #            if itr > 297:
+        #                weight = 0.01
+        #        elif itr > 222:
+        #            weight = 0.01
 
                 #if idx == 2 :
                 #    if itr > 301:
@@ -282,19 +301,13 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
                 #    else :
                 #        weight = 1.0
 
-        else :
+        else:
             weight = 1
 
         w = w_ladder[idx] * weight
 
-        if args.bound_surjection:
-            anneal = (1 - 1 / T)
-            loss2 = (log_probz) * anneal - log_probq #- _
-            #if itr > 300:
-            #    loss2 = loss2 - _
-        else:
-            loss2 = (log_probz) * (1 - 1 / T) - log_probq
-
+        anneal = (1 - 1 / T)
+        loss2 = log_probz * anneal - log_probq
         idx_loss = loss2 + kl_dive / T
 
         loss = loss - 1 * (idx_loss.mean()) * w
@@ -302,15 +315,33 @@ def get_MSIR_loss(can_model, model, observation, args, itr, eval = False, recove
     if eval and not recover:
         return samples, Pd
 
-    if itr > 299:
-        logw = idx_loss
-        w = torch.exp(logw - torch.max(logw))
-        w_norm = w
-        w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
-        w_norm = torch.tensor(data=w_norm, device=args.device)
-        w_norm = w_norm / torch.sum(w_norm)
-        loss = w_norm * (logw)
-        loss = -1 * loss.mean() * 20
+    if args.AIS :
+        if itr > 149:
+            logw = idx_loss
+            w = torch.exp(logw - torch.max(logw))
+            w_norm = w
+            w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
+            w_norm = torch.tensor(data=w_norm, device=args.device)
+            w_norm = w_norm / torch.sum(w_norm)
+            loss = w_norm * (logw)
+            loss = -1 * loss.mean() * 20
+
+        #logw = idx_loss
+        #mask = torch.zeros(size=logw.shape, device=logw.device)
+
+        #w = torch.exp(logw - torch.max(logw))
+        #w_norm = w / torch.sum(w)
+        #sampled_idx = np.random.choice(torch.arange(logw.shape[0]), size=1, p=w_norm.clone().detach().cpu().numpy())
+        #mask[sampled_idx] = 1.0
+        #loss = mask * log_probq
+        #print(mask.shape, log_probq.shape, mask)
+        #loss = loss.sum()
+        # w_norm = w
+        #w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
+        #w_norm = torch.tensor(data=w_norm, device=args.device)
+        #w_norm = w_norm / torch.sum(w_norm)
+        #loss = w_norm * (logw)
+        #loss = -1 * loss.mean() * 20
 
     nll = kl_dive
 
@@ -323,8 +354,6 @@ def only_forward(param_sample, args):
     sampled_x = torch.tensor(data=param_sample, device=args.device)
     x = sampled_x
 
-
-    # term = 20 * 52 + 118
     term = 5 * 52 + 118
     tt = torch.linspace(0, term, steps=term + 1, requires_grad=False).to(args.device)
     tt = torch.cat((torch.tensor([0.0], device=args.device), tt[-118:]))

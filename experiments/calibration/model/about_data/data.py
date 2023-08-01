@@ -1,8 +1,7 @@
 import numpy as np
-from torch.utils.data import DataLoader
 import torch
 
-dataset_choices = {'MSIR_full', "MSIR", 'SIR', 'SEIR'}
+dataset_choices = {'MSIR_full', "MSIR", 'SIR', 'SEIR', 'mRNA'}
 
 
 def add_data_args(parser):
@@ -22,6 +21,9 @@ def get_data_shape(data_name):
 
     if (data_name == "SEIR"):
         ds = 5
+
+    if (data_name == "mRNA"):
+        ds = 11
 
     return ds
 
@@ -57,4 +59,17 @@ def get_data(args, model_num=0):
         # Get Test observed value, Y and Plot
         truex = torch.tensor(test_data, dtype=torch.float, device=args.device)
 
+    if args.dataset == 'mRNA':
+        test_data = np.genfromtxt("../data/mRNA/mRNA_data.csv")
+        test_data = torch.tensor(data=test_data[[0], :], dtype=torch.float32)
+
+        sk = np.load("../data/mRNA/mRNA_sk.npy")
+        sk = torch.tensor(data=sk, dtype=torch.float32)
+        truex = (test_data, sk)
+
     return truex, data_shape
+
+
+if __name__ == "__main__":
+    test_data = np.genfromtxt("/data/Measles_data_time.csv", delimiter=',')
+    print(test_data.shape)

@@ -112,14 +112,14 @@ class BoundSurjection_S(Surjection):
     '''
 
     stochastic_forward = False
-    def __init__(self, a = -1.5, b = 1.5):
+    def __init__(self, a = -2.0, b = 2.0):
         super(BoundSurjection_S, self).__init__()
         self.ub = b
         self.lb = a
 
     def forward(self, z):
 
-        #z = torch.clamp(z, min = -3.0, max = 3.0)
+        z = torch.clamp(z, min = -4.0, max = 4.0)
         x, s1mask = self.bound_function(z)
         #z_p1 = self.sig_ldj(z)
         xx = x.clone()#.detach()

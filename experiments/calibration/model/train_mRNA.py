@@ -6,7 +6,7 @@ from utils import set_seeds
 from datetime import datetime
 import os
 # Exp
-from VI_run import SEIR_Experiment_Writing, add_exp_args
+from VI_run import mRNA_Experiment_Writing, add_exp_args
 from torch.optim import Adam, Adamax
 import time
 import matplotlib.pyplot as plt
@@ -22,8 +22,6 @@ parser = argparse.ArgumentParser()
 add_exp_args(parser)
 add_data_args(parser)
 add_model_args(parser)
-parser.add_argument('--smoothing', type=int, default=1000)
-parser.add_argument('--smoothing2', type=float, default=0.1)
 
 args = parser.parse_args()
 
@@ -36,13 +34,11 @@ loss_fn = get_loss(args)
 model_id = get_model_id(args)
 
 ## Training ##
-exp_writer = SEIR_Experiment_Writing(args, data_id, model_id)
+exp_writer = mRNA_Experiment_Writing(args, data_id, model_id)
 real_batch = args.batch_size
 
-assert args.dataset == "SEIR"
+assert args.dataset == "mRNA"
 assert args.model_num == 1
-
-
 
 for model_num in range(args.model_num):
     args.batch_size = real_batch
@@ -56,17 +52,16 @@ for model_num in range(args.model_num):
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
                                             lr_lambda=lambda epoch: 0.995 ** epoch)
-
-    groundtruth = truex
+    # groundtruth = truex
 
     try:
         for itr in range(args.iteration):
-            if itr> 100 :
-                args.batch_size = 256
+            # if itr> 100 :
+            #    args.batch_size = 256
             loss, nll, _ = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
             if itr != 0:
                 loss.backward()
-                max_norm = 4e-3
+                max_norm = 4e-2
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
                 optimizer.step()
                 scheduler.step()
@@ -79,9 +74,9 @@ for model_num in range(args.model_num):
 
                 samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, eval=True, itr=itr)
 
-                exp_writer.forward_img_store(samples, truex, groundtruth, model_num, itr)
+                exp_writer.forward_img_store(samples, truex, model_num, itr)
 
-                params_ls, _, _, _ = mycan(num_samples=5000, model=model)
+                params_ls, _, _ = mycan(num_samples=5000, model=model)
                 exp_writer.param_ls_img_store(params_ls, model_num=model_num, itr=itr)
                 now = datetime.now()
 
@@ -91,13 +86,13 @@ for model_num in range(args.model_num):
                     'itr': itr,
                     # 'global_step': args.step,
                     'state_dict1': model.state_dict()},
-                    os.path.join("./results/SEIR/model",
+                    os.path.join("./results/mRNA/model",
                                  '{}_checkpoint_date{}_itr{}_modelnum{}.pt'.format(args.bound_surjection,
                                                                                                dt_string, itr,
                                                                                                model_num)))
                 print('')
 
-    except ValueError as e:
+    except NotImplementedError as e:
     #except Exception as e:
         print('')
         print("Error_{} occured".format(e))

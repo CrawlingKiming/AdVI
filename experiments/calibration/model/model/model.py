@@ -1,6 +1,7 @@
 from .MSIR_full_AIS import build_MSIR_model, get_MSIR_loss
 from .SEIR_AIS import build_SEIR_model, get_SEIR_loss
 from .SIR_AIS import build_SIR_model, get_SIR_loss
+from .mRNA_full_AIS import build_mRNA_model, get_mRNA_loss
 
 def add_model_args(parser):
 
@@ -11,6 +12,9 @@ def add_model_args(parser):
     parser.add_argument('--bound_surjection', type=eval, default=True)
     parser.add_argument('--AIS', type=eval, default=True)
     parser.add_argument('--temp', type=float, default=6)
+
+    # Baseline Models
+    parser.add_argument('--gaussian', type=eval, default=False)
 
     # Train params
     parser.add_argument('--batch_size', type=int, default=16)
@@ -33,6 +37,9 @@ def get_model(args, data_shape):
     if (args.dataset == "SEIR"):
         mycan, model = build_SEIR_model(args, data_shape)
 
+    if (args.dataset == "mRNA"):
+        mycan, model = build_mRNA_model(args, data_shape)
+
     return mycan, model
 
 def get_loss(args):
@@ -45,5 +52,8 @@ def get_loss(args):
 
     if args.dataset == "SEIR":
         loss_fn = get_SEIR_loss
+
+    if args.dataset == "mRNA":
+        loss_fn = get_mRNA_loss
 
     return loss_fn

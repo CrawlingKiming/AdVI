@@ -52,6 +52,20 @@ class ScaleBijection(Bijection):
         return x
 
 
+class Exp(Bijection):
+
+    def __init__(self):
+        super(Exp, self).__init__()
+
+    def forward(self, x):
+        z = torch.exp(x)
+        ldj = sum_except_batch(x)
+        return z, ldj
+
+    def inverse(self, z):
+        x = z / self.scale
+        return x
+
 class ShiftBijection(Bijection):
 
     def __init__(self, shift):
@@ -92,15 +106,88 @@ class Shuffle_with_Order(Permute):
         #print(order.shape)
         super(Shuffle_with_Order, self).__init__(order , dim)
 
-#class Order_Preserved_Shuffle(Permute):
-#    def __init__(self):
-
 class Order_Shuffle(Permute):
     def __init__(self, order, dim=1):
         #print(order.shape)
         super(Order_Shuffle, self).__init__(order, dim)
 
+class GaussianModel(Bijection):
 
+    """
+    For Gaussian Coupla Approximation
+    """
+
+    def __init__(self, dim):
+        """
+        transforms: YJ transforms (if needed)
+
+        """
+        super(Bijection, self).__init__()
+        #assert isinstance(base_dist, Distribution)
+        # if isinstance(transforms, Transform): transforms = [transforms]
+        # assert isinstance(transforms, Iterable)
+        # assert all(isinstance(transform, Transform) for transform in transforms)
+        #self.base_dist = base_dist  # Should be independent Gaussian
+
+        self.lower_tri = torch.nn.Parameter(data=torch.rand(int(dim * (dim-1)/2),))
+        self.tril_ind = torch.tril_indices(dim, dim, -1)  # Stores param
+        self.mu = torch.nn.Parameter(data=torch.rand(dim))
+
+        lower_fake_param = torch.zeros(x.shape[1], x.shape[1], device=x.device) + torch.eye(x.shape[1], device=x.device)
+        lower_fake_param[self.tril_ind[0, :], self.tril_ind[1, :]] = self.lower_tri
+
+        lower_fake_param = lower_fake_param[None, :, :].repeat(x.shape[0], 1, 1)
+
+        self.final_dist = MultivariateNormal(loc=self.mu,
+                                        scale_tril=lower_fake_param[0])  # Much more stable than standard version
+
+        #self.transforms = nn.ModuleList(transforms)  # Should be YJ transformation
+        #self.lower_bound = any(transform.lower_bound for transform in transforms)
+
+
+    def log_prob(self, x):
+        """
+        log_prob1 : final log probability of the generated samples
+        log_prob2 : log p_{z} values
+        """
+        #print(x.shape)
+        Bz = torch.matmul(lower_fake_param, x[:, :, None])
+
+        x = self.mu + Bz[:, :, 0]
+
+        #print(x.shape)
+
+        log_prob1 = final_dist.log_prob(x)
+
+        #print(log_prob1.shape)
+        #raise ValueError
+        if self.transforms:
+            for transform in self.transforms:
+                x, ldj = transform(x)
+                log_prob1 += ldj
+
+        # No need to evaluate this value
+        log_prob2 = torch.zeros(x.shape[0], device=x.device)
+
+        return log_prob1, log_prob2, x
+
+    def sample(self, num_samples):
+        raise NotImplementedError
+        #z = self.base_dist.sample(num_samples)
+        #z1, z2 = torch.split(z, (2,2), dim = 1)
+
+        #for transform in reversed(self.transforms):
+        #    z = transform.inverse(z)
+
+        #return z
+
+    def inversed(self, z):
+        raise NotImplementedError
+
+        #for transform in reversed(self.transforms):
+        #    z = transform.inverse(z)
+        #z = torch.clamp(z, min=0.01)
+        #return z
 
 def create_idx(dim_size, num, per):
     assert num % per == 0
@@ -149,15 +236,20 @@ def create_7dim_sort():
                     torch.tensor([[2, 5, 1, 3, 4, 6, 0]])]
     return shuffle_list
 
+def create_11dim_sort():
+    shuffle_list = [torch.tensor([[8, 3, 6, 2, 7, 0, 1, 5, 9, 4, 10]]), torch.tensor([[6, 1, 10, 7, 2, 3, 5, 4, 9, 0, 8]]),
+                    torch.tensor([[0, 4, 3, 6, 1, 10, 2, 5, 8, 7, 9]]), torch.tensor([[3, 0, 7, 4, 8, 2, 1, 9, 10, 5, 6]])]
+    return shuffle_list
+
 if __name__ == "__main__":
-    """
+
     Shuffle_list = []
-    dim_size = 3
-    s, t = compute_idx(7,20,1)
-    #print(s)
-    #print(t)
+    dim_size = 11
+    s, t = compute_idx(11,4,1)
+    print(s)
+    print(t)
 
-
+    """
     for j in range(10):
         Shuffle_list.append(Shuffle_with_Order(dim_size=7, idx=j+1, step=2))
 

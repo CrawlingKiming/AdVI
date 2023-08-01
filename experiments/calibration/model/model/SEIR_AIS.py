@@ -5,18 +5,18 @@ from survae.distributions import StandardNormal
 from survae.transforms import Sigmoid
 from .SEIR_fullModel import ODE_Solver as ODE_Solver
 from .SEIR_fullModel import SEIR as SEIR
-from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Transform, Build_Shuffle_Order_5_Transform
+from .subclass.InverseFlow import SqFlow, MSIR_Flow, Build_Shuffle_Transform, Build_Shuffle_Order_5_Transform, Build_Auto_Transform, Build_Spline_Transform, GaussianModel, Build_Spline_Order_5_Transform
 from .subclass.layers import ShiftBijection, ScaleBijection
 from .subclass.surjective import BoundSurjection_S
-
+from .subclass.diagnostic import PSIS_sampling
 
 def plain_convert(x):
     raise NotImplementedError
 
 def get_ladder(args):
     if args.AIS:
-        idx_ladder = [10, 20]
-        temp_ladder = [args.temp, 1]
+        idx_ladder = [args.num_flows//2, args.num_flows]
+        temp_ladder = [args.temp, 1.]
         w_ladder_ls = [[2, 1]]
 
     else:
@@ -68,7 +68,9 @@ class CanModel(torch.nn.Module):
         x = self.base_dist.sample(num_samples = num_samples)
 
         log_probq_ls, log_probz_ls, z_ls = model.log_prob(x, ladder)
+        #print(log_probq_ls)
         z_concat = torch.cat(z_ls, 0) # (L*B) * D
+
         log_probp_ls = torch.chunk(torch.log(3 * torch.ones(size=(z_concat.shape[0],),
                                                         device=z_concat.device) / (5 * 4**6)),len(self.idx_ladder), dim=0)
         #np.save("BFAF", temp)
@@ -105,10 +107,19 @@ def build_SEIR_model(args, data_shape):
     NormalFlow = MSIR_Flow(base_dist=StandardNormal((D,)),
                            transforms=pretrained_transforms).to(args.device)
 
-    if args.AIS:
-        model1_transforms1 = Build_Shuffle_Order_5_Transform(D=D, num_flows=args.num_flows, steps=10)
-    else :
-        model1_transforms1 = Build_Shuffle_Transform(D=D, num_flows=args.num_flows)
+    if args.gaussian:
+        model1_transforms1 = GaussianModel(StandardNormal((D,)), D, pretrained_transforms)
+        ladd_step = 1
+    #elif args.AIS:
+    #    model1_transforms1 = Build_Shuffle_Order_5_Transform(D=D, num_flows=args.num_flows, steps=10)
+    else:
+    #    model1_transforms1 = Build_Shuffle_Transform(D=D, num_flows=args.num_flows)
+        model1_transforms1 = Build_Spline_Order_5_Transform(D=D, num_bin=8, num_flows=args.num_flows)
+        #model1_transforms1 = Build_Auto_Transform(D=D, num_flows=args.num_flows)
+
+        ladd_step = 2
+
+    #model1_transforms1 = Build_Auto_Transform(D=D, num_flows=args.num_flows)
 
     if args.bound_surjection:
         mycan = CanModel(pretrained=NormalFlow, data_shape=D, idx_ladder=idx_ladder
@@ -116,7 +127,7 @@ def build_SEIR_model(args, data_shape):
     else:
         print("Non BS")
         mycan = CanModel(pretrained=NormalFlow, data_shape=D, idx_ladder=idx_ladder, bound_q=None).to(args.device)
-    model1 = SqFlow(base_dist=StandardNormal((D,)), transforms=model1_transforms1).to(args.device)
+    model1 = SqFlow(base_dist=StandardNormal((D,)), transforms=model1_transforms1,ladd_step=ladd_step).to(args.device)
 
     return mycan, model1
 
@@ -221,8 +232,9 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
         kl_dive = kl_dive_ls[idx]
         T = temp_ladder[idx]
         w = w_ladder[idx]
+        annealed = 1 - 1/T
 
-        loss2 = log_probz * (1 - 1/T) - log_probq
+        loss2 = log_probz * annealed - log_probq
         idx_loss = loss2 + kl_dive/ T
         if args.AIS :
             if itr < 100 and idx == len(idx_ladder) -1:
@@ -232,8 +244,19 @@ def get_SEIR_loss(can_model, model, observation, args, itr, eval = False, recove
             if itr >= 100 -1 and idx == 0 :
                 weight = 0
                 w = w * weight
-        loss = loss - 1 * (idx_loss.mean()) * w
 
+            if itr > 101:
+                logw = idx_loss
+                w = torch.exp(logw - torch.max(logw))
+                w_norm = w
+                w_norm = PSIS_sampling(w.clone().detach().cpu().numpy())
+                w_norm = torch.tensor(data=w_norm, device=args.device)
+                w_norm = w_norm / torch.sum(w_norm)
+                loss = w_norm * (logw)
+                loss = -1 * loss.mean() * 20
+        else:
+            loss = loss - 1 * (idx_loss.mean()) * w
+        print(loss)
     nll = kl_dive
 
     null = 0

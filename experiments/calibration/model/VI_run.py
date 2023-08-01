@@ -203,6 +203,7 @@ class Experiment_Writing():
         """
 
         plt.savefig(os.path.join(os.path.join(self.log_path, "param_samples_model_num{}_interval{}.png".format(model_num, itr))))
+
         # plt.close(fig = fig)
         plt.close(fig=fig)
         plt.clf()
@@ -272,6 +273,7 @@ class Experiment_Writing():
             """
 
             plt.savefig(os.path.join(os.path.join(self.log_path, "param_samples_model_num{}_interval{}_Ladder{}{}.png".format(model_num, itr, p_idx,qq))))
+            #np.save(os.path.join(os.path.join(self.log_path, "param_samples_model_num{}_interval{}_Ladder{}{}.png".format(model_num, itr, p_idx,qq))), temp)
             # plt.close(fig = fig)
             plt.close(fig=fig)
 
@@ -609,6 +611,175 @@ class SEIR_Experiment_Writing():
             axs[1, 1].set_xlim([0.08, 0.11])  # 0.09
             axs[1, 1].hist(temp[:, 4], bins=128, edgecolor='black', color='gray', alpha=0.3)
             fig.delaxes(axs[1, 2])
+
+            plt.savefig(os.path.join(os.path.join(self.log_path, "param_samples_model_num{}_interval{}_Ladder{}.png".format(model_num, itr, p_idx))))
+            plt.close(fig=fig)
+
+
+class mRNA_Experiment_Writing():
+    no_log_keys = ['project', 'name',
+                    'eval_every']
+
+    def __init__(self, args,
+                 data_id, model_id):
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        log_base = os.path.join(dir_path, 'results/mRNA/log')
+        self.log_base = log_base
+        print("Saving log : {}".format(log_base))
+        if args.name is None:
+            args.name = time.strftime("%Y-%m-%d_%H-%M-%S")
+        if args.project is None:
+            args.project = '_'.join([data_id, model_id])
+
+        log_path = os.path.join(self.log_base, data_id, model_id, args.name)
+        self.check_every = args.eval_every
+        self.log_path = log_path
+        # Store args
+        self.create_folders()
+        self.save_args(args)
+        self.args = args
+
+        # Store IDs
+        self.data_id = data_id
+        self.model_id = model_id
+
+        args_dict = clean_dict(vars(args), keys=self.no_log_keys)
+#        if args.log_tb:
+        self.writer = SummaryWriter(os.path.join(self.log_path, 'tb'))
+        self.writer.add_text("args", get_args_table(args_dict).get_html_string(), global_step=0)
+
+    def save_args(self, args):
+        # Save args
+        with open(os.path.join(self.log_path, 'args.pickle'), "wb") as f:
+            pickle.dump(args, f)
+
+        # Save args table
+        args_table = get_args_table(vars(args))
+        with open(os.path.join(self.log_path,'args_table.txt'), "w") as f:
+            f.write(str(args_table))
+
+    def create_folders(self):
+        # Create log folder
+        os.makedirs(self.log_path)
+
+    def loss_store(self, loss, nll, itr,time, model_num):
+        loss = loss.detach().cpu().numpy()
+        nll = nll.detach().cpu().numpy()
+        nll = np.mean(nll)
+
+        self.writer.add_scalar('Loss/train/ELBO_{}'.format(model_num), loss, itr)
+        self.writer.add_scalar('Loss/train/nll_{}'.format(model_num), nll, itr)
+        self.writer.add_scalar('Loss/train/time_{}'.format(model_num), time, 0)
+        print(
+            'Iter: {}/{},loss:{}, NLL:{}, Time :{}'.format(itr + 1, 400, loss, nll, time), end='\r')
+
+    def forward_img_store(self, samples, truex, model_num, itr):
+        I_w = samples
+        truex, sk = truex
+
+        truex = truex.detach().cpu().numpy()
+        #truex = truex[np.newaxis, :]
+        truex = truex[0]#np.sum(truex, axis=1)
+        fig, ax = plt.subplots(1, 1)
+
+
+        samples_mean = np.mean(I_w, axis=0)
+        samples_min = np.percentile(I_w, 97.5, axis=0)
+        samples_max = np.percentile(I_w, 2.5, axis=0)
+
+        #print(I_w.shape)
+        ax.plot(samples_mean[:], color="red")
+        ax.plot(samples_min[:], "--", color="red")
+        ax.plot(samples_max[:], "--", color="red")
+        ax.plot(I_w[0, :], color="blue")
+        ax.plot(I_w[1, :], color="gray")
+        ax.plot(I_w[2, :], color="green")
+        # x[pp].plot(cases_prob[0][:,pp].detach().cpu().numpy(), color = "red")
+        ax.plot(truex, "ko", markersize=2)
+        ax.set_xlabel('Time (weeks)', fontsize=10)
+
+
+        plt.savefig(os.path.join(self.log_path, "Forwardsamples_model_num{}_interval{}.png".format(model_num, itr)),
+                    bbox_inches='tight')
+        plt.close(fig=fig)
+
+        #truex = np.reshape(truex, (1, 53))
+        #print(truex.shape)
+        #print(samples.shape)
+        #print(np.mean(np.square((age_class-age_true)*100)))
+        #print(np.mean(np.square(I_w - truex)))
+        #print("I_w MSE: {}".format(np.mean(np.square(samples_mean - truex))))
+        #print("Age MSE: {}".format(np.mean(np.square(100 *age_class_mean - 100 * age_true))))
+        """
+        cover_num = 0
+        for ti in range(truex.shape[0]):
+            #print(truex[ti],samples_max[ti])
+            if (truex[ti] <= samples_min[ti]) and (truex[ti] >= samples_max[ti]):
+                cover_num += 1
+
+        age_cover = 0
+        for ti in range(3):
+            if (age_true[ti] <= age_class_min[ti]) and (age_true[ti] >= age_class_max[ti]):
+                age_cover += 1
+
+        print(cover_num/54)
+        print(age_cover)
+        print(np.mean(np.square((age_class-age_true)*100)))
+        print(np.mean(samples_max-samples_min))
+        self.writer.add_scalar('Loss/train/coverage_{}'.format(model_num), 100 * cover_num / truex.shape[0], itr)
+        """
+
+    def param_img_store(self, params, model_num, itr):
+        raise NotImplementedError
+
+    def param_ls_img_store(self, params, model_num, itr):
+
+        for p_idx in range(len(params)):
+            sample_list = []
+            #print(p_idx)
+            temp = params[p_idx]
+            temp = temp.cpu().detach().numpy()
+            sample_list.append(temp)
+
+            temp = np.asarray(sample_list)
+
+            temp = temp[0]
+
+            fig, axs = plt.subplots(4, 3, constrained_layout=True)
+
+            axs[0, 0].hist(temp[:, 0], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[0, 0].set_title(r'$\theta_{1}$', size=23)
+            #axs[0, 0].set_xlim([0.0 , 5.5])
+            axs[0, 1].hist(temp[:, 1], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[0, 1].set_title(r'$\theta_{2}$', size=23)
+            #axs[0, 1].set_xlim([0.0 , 5.5])  # 130
+            axs[0, 2].hist(temp[:, 2], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[0, 2].set_title(r'$\theta_{3}$', size=23)
+            #axs[0, 2].set_xlim([0.0 , 5.5])  # 0.0005
+            axs[1, 0].set_title(r'$\theta_{4}$', size=23)
+            #axs[1, 0].set_xlim([0.0 , 5.5])
+            axs[1, 0].hist(temp[:, 3], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[1, 1].set_title(r'$\theta_{5}$', size=23)
+            #axs[1, 1].set_xlim([0.0 , 5.5])  # 0.09
+            axs[1, 1].hist(temp[:, 4], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[1, 2].set_title(r'$\theta_{6}$', size=23)
+            #axs[1, 2].set_xlim([0.0, 5.5])  # 0.09
+            axs[1, 2].hist(temp[:, 5], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[2, 0].set_title(r'$\theta_{7}$', size=23)
+            #axs[2, 0].set_xlim([0.0, 5.5])  # 0.09
+            axs[2, 0].hist(temp[:, 6], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[2, 1].set_title(r'$\theta_{8}$', size=23)
+            #axs[2, 1].set_xlim([0.0, 5.5])  # 0.09
+            axs[2, 1].hist(temp[:, 7], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[2, 2].set_title(r'$\theta_{9}$', size=23)
+            #axs[2, 2].set_xlim([0.0, 5.5])  # 0.09
+            axs[2, 2].hist(temp[:, 8], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[3, 0].set_title(r'$\tau$', size=23)
+            #axs[3, 0].set_xlim([0.0, 5.5])  # 0.09
+            axs[3, 0].hist(temp[:, 9], bins=128, edgecolor='black', color='gray', alpha=0.3)
+            axs[3, 1].set_title(r'$\sigma$', size=23)
+            #axs[3, 1].set_xlim([0.0, 5.5])  # 0.09
+            axs[3, 1].hist(temp[:, 10], bins=128, edgecolor='black', color='gray', alpha=0.3)
 
             plt.savefig(os.path.join(os.path.join(self.log_path, "param_samples_model_num{}_interval{}_Ladder{}.png".format(model_num, itr, p_idx))))
             plt.close(fig=fig)

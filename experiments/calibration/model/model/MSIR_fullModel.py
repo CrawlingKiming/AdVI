@@ -193,21 +193,10 @@ def ODE_Solver(params, tt, model, args, t_end = None, initial_params =None):
 
 
 if __name__ == "__main__":
-    """
-    params : b, phi, gamma_s, gamma_m, delta, tau, N 
-    Z0 : M S Is Im R 
-      N = 324935
-  M.0 = N*13/(5*52) # initial number of children <13weeks protected by maternal immunity
-  eq = (N-M.0)/5 # compartments besides M; choose starting values equally spread among compartments
-  init.vals = c(M=c(M.0,rep(0,n.age-1)),S=rep(eq/n.age,n.age),Is=rep(eq/n.age,n.age),Im=rep(eq/n.age,n.age),R=rep(eq/n.age,n.age-1))
-
-    """
 
     t0 = 0
-    #term = 20 * 52 + 118
     term = 5 * 52 + 118
     tt = torch.linspace(0, term, steps = term + 1)
-    #print(tt)
     func = MSIR()
     reparam = False
 
@@ -247,7 +236,6 @@ if __name__ == "__main__":
     )
     #print(params)
     tt = torch.linspace(0, term, steps = term + 1)
-    #z_samples = torch.swapaxes(z_samples, 0, 1) # B * t * I
     z_samples = torch.transpose(z_samples, 0, 1)
     print(z_samples.shape)
     M = z_samples[:,-118:, 0:6]
@@ -284,48 +272,18 @@ if __name__ == "__main__":
     beta_cos = beta_cos.unsqueeze(2).unsqueeze(3).repeat(1, 1, 6, 6)
     beta_t_pre = beta_t_pre.unsqueeze(1)
 
-    #print(beta_t_pre.shape, beta_cos.shape)
-
     beta_t = beta_t_pre * beta_cos # B * t * I * I
-      # torch.matmul(beta_cos, beta_t_pre) # B * I
-    #beta_t = beta_t.repeat(B, 1, 1, 1)
     Y = torch.div((Is + 0.5 * Im), (N * func.frac[None, :]))  # B * I  * 1 * I = B* t * I
 
     # Assume B = 1
-    #print(Y.shape, beta_t.shape)
-    #print(B, print(t.shape))
     Y = Y.reshape(B * 118, 6)
     beta_t = beta_t.reshape(B * 118, 6, 6)
     # Y : B * I -> B * I * 1 * 1
     # beta_t : B * t * I * I
     # B * t * I * 1 * 1 * 1
-    #lambd_list = []
-    #print(Y.shape, beta_t.shape)
-    #torch.bmm(beta_t[0], Y[0].unsqueeze(-1))
     lambd = torch.bmm(beta_t, Y.unsqueeze(-1))
     lambd = lambd.reshape(B, 118, 6)
-    #print(lambd.shape)
 
-
-    """
-    beta_t_pre = torch.matmul(func.beta, func.contact)  # 1 * I
-    beta_t_pre = beta_t_pre.repeat(B,1) # B *1 * I
-    beta_t_pre = beta_t_pre.unsqueeze(1)
-    beta_cos = 1 + torch.cos((2 * torch.tensor(np.pi) * t - 52 * phi) / 52)  # B * t
-    beta_cos = beta_cos.unsqueeze(-1) # B * t * 1
-    #print(beta_cos.shape, beta_t_pre.shape)
-    beta_t = torch.bmm(beta_cos, beta_t_pre)  # B * t * I
-    # func.frac 1 * I
-    frac = func.frac
-    frac = frac.unsqueeze(0).repeat( B,t.shape[-1], 1)
-    #raise ValueError 위에 부분 이상
-    Y = (Is + 0.5 * Im) / (N * frac)  # B * t * I
-    #check this
-    #print(Y.shape, beta_t.shape)
-    lambd = beta_t * Y # B * t * I
-    """
-    #z_samples
-    #rho = rho.unsqueeze(-1) # B * 1
     cases_age = 0.24 * lambd * S # B * t * I
     #print(cases_age.shape)
     for i in range(B):
@@ -336,9 +294,6 @@ if __name__ == "__main__":
     cases2 = torch.sum(cases_age[:, :, [3]], dim=2).unsqueeze(2)
     cases3 = torch.sum(cases_age[:, :, 4: 6], dim=2).unsqueeze(2)
     cases_fit = torch.cat((cases1, cases2, cases3), 2) # B * t * 3
-    #print(S)
-    #print(cases_fit)
-    #print(cases_fit.shape)
     samples = cases_fit.detach().cpu().numpy()
 
     for i in range(B):
@@ -348,13 +303,8 @@ if __name__ == "__main__":
     #print(r.shape, new_r.shape)
     new_r = new_r.view(B, t.shape[1], 3)
     print(new_r.shape, cases_fit.shape)
-    #print(new_r)
-    #print(new_r[0,0,:])
     cases_prob = cases_fit / (1+ cases_fit)
     nb = torch.distributions.negative_binomial.NegativeBinomial(total_count = new_r, probs = cases_prob)
     sample = nb.sample((1,))
 
-    #samples = cases_fit.detach().cpu().numpy()
-    #print(sample)
-    #print(sample.grad_fn)
     print(-1 * nb.log_prob(sample).mean())

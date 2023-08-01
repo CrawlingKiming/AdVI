@@ -58,6 +58,10 @@ def HPD(args, samples, model_num=None, log_path = None):
     if (args.dataset == "MSIR") or (args.dataset == "MSIR_full"):
         samples = samples[-1]
         temp = samples.cpu().detach().numpy()
+        print("np")
+        np.save(os.path.join(
+            os.path.join(log_path, "numpy_samples_model_num{}".format(model_num))), temp)
+
         true = [0.43, 7.35, 0.027, 0.9, 1.30537122, 3.11852393, 0.03206678, 3.24118948, 0.31400672, 0.09410381]
 
         true_beta = [1.30537122, 3.11852393, 0.03206678, 3.24118948, 0.31400672, 0.09410381]
@@ -187,7 +191,7 @@ for f in filenames:
     try:
         truex, data_shape = get_data(args, model_num=ii)
         ii += 1
-        if ii != 1:
+        if ii >= 2:
             continue
         model_path = os.path.join(log_path, f)
         checkpoint = torch.load(model_path)
