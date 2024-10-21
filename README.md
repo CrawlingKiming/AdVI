@@ -1,6 +1,6 @@
 ﻿# Annealed and Transformed Variational Inference 
 
-> Official code for [Fast Compartment Model Calibration using Annealed and Transformed Variational Inference]
+> Official code for [Fast Computer Model Calibration using Annealed and Transformed Variational Inference]
 
 ![image1](title/Model_Outline4.PNG)
 
@@ -17,6 +17,11 @@ pip install .
 
 ### Experiments
 To train or evaluate model, please check /experiments.
+
+### Paper 
+
+The original paper can be found here: 
+*https://www.tandfonline.com/doi/full/10.1080/10618600.2024.2374962
 
 #### Acknowledgements
 
