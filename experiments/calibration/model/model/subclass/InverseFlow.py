@@ -328,7 +328,7 @@ class MSIR_Flow(Flow):
 
         log_prob1 = torch.zeros(x.shape[0], device=x.device)
         log_prob2 = torch.zeros(x.shape[0], device=x.device)
-        #log_prob1 += self.base_dist.log_prob(x)
+        log_prob1 += self.base_dist.log_prob(x)
         for transform in self.transforms:
             #print(x)
             x, ldj = transform(x)
@@ -360,10 +360,9 @@ class GaussianModel(Flow):
     For Gaussian Coupla Approximation
     """
 
-    def __init__(self, base_dist, dim, transforms):
+    def __init__(self, base_dist, dim):
         """
-        transforms: YJ transforms (if needed)
-
+        transforms: YJ transforms 
         """
         super(Flow, self).__init__()
         assert isinstance(base_dist, Distribution)
@@ -375,55 +374,164 @@ class GaussianModel(Flow):
         self.lower_tri = nn.Parameter(data=torch.rand(int(dim * (dim-1)/2),))
         self.tril_ind = torch.tril_indices(dim, dim, -1)  # Stores param
         self.mu = nn.Parameter(data=torch.rand(dim))
+        self.lt_gamma = nn.Parameter(data=torch.rand(dim))
+        self.g = nn.Parameter(data=torch.rand(dim))
 
-        self.transforms = nn.ModuleList(transforms)  # Should be YJ transformation
-        self.lower_bound = any(transform.lower_bound for transform in transforms)
 
-
-    def log_prob(self, x):
+    def log_prob(self, x, ladder=1):
         """
         log_prob1 : final log probability of the generated samples
         log_prob2 : log p_{z} values
         """
         #print(x.shape)
         lower_fake_param = torch.zeros(x.shape[1], x.shape[1], device=x.device) + torch.eye(x.shape[1], device=x.device)
-        lower_fake_param[self.tril_ind[0, :], self.tril_ind[1, :]] = self.lower_tri
+        lower_fake_param[self.tril_ind[0, :], self.tril_ind[1, :]] = self.lower_tri.to(x.device)
 
         lower_fake_param = lower_fake_param[None, :, :].repeat(x.shape[0], 1, 1)
         Bz = torch.matmul(lower_fake_param, x[:, :, None])
+        xi = self.mu.to(x.device) + Bz[:, :, 0]
+        
+        th = xi 
+        logth = 0.0
+        # IGH transform
+        xi = self.mu.to(x.device) + Bz[:, :, 0]
+        h = torch.sigmoid(self.lt_gamma.to(x.device)-3500)
+        
+        h = h[None, :].repeat(x.shape[0], 1)
+        g = self.g[None, :].repeat(x.shape[0], 1).to(x.device) /5 #100 #5
+        #print(self.g)
+        th = (torch.exp(g*xi) - 1) * torch.exp(h * torch.pow(xi, 2) / 2) / g 
+        logth = torch.exp(g*xi + h * torch.pow(xi, 2) / 2) + h * xi * th 
+        logth = -1 * torch.log(logth)
+        logth = torch.sum(logth, dim=1)
+        #print(logth)
+        """
+        gamma = 2 * torch.sigmoid(self.lt_gamma.to(x.device))
+        gamma = gamma[None, :].repeat(x.shape[0], 1)
+        xi = self.mu.to(x.device) + Bz[:, :, 0]
+        neg_xi = (1 - xi * (2-gamma))
+        pos_xi = (1 + gamma * xi) 
+        #print(pos_xi, neg_xi)
+        neg_th = 1- (torch.pow(neg_xi, (1/(2-gamma)))) 
+        pos_th = torch.pow(pos_xi, (1/gamma)) - 1
+        #print(pos_th, neg_th)
 
-        x = self.mu + Bz[:, :, 0]
+        th = torch.zeros(xi.shape, device=x.device)
+        #th = torch.clamp(pos_th, min=0.0) + torch.clamp(neg_th, max=0.0)
+        logth = torch.zeros(xi.shape, device=x.device)
+        print( self.mu)
+        pm = (pos_th >= 0)
+        nm = (neg_th < 0)
+        th[(pos_th >= 0)] = pos_th[(pos_th >= 0)]
+        th[(neg_th < 0)] = neg_th[(neg_th < 0)]
+        #print(th)
+        #print(gamma.shape, nm.shape, logth.shape, torch.log(1 - th[nm]).shape)
+        lnm = (1-gamma) * torch.log(1 - th + 1e-3) 
+        lpm = (gamma-1) * torch.log(th+ 1 + 1e-3)
+        logth[nm] = lnm[nm]
+        logth[pm] = lpm[pm]
+        
 
-        #print(x.shape)
 
-        final_dist = MultivariateNormal(loc=self.mu, scale_tril=lower_fake_param[0])  # Much more stable than standard version
-        log_prob1 = final_dist.log_prob(x)
-
+        
+        """
+        final_dist = MultivariateNormal(loc=self.mu.to(x.device), scale_tril=lower_fake_param[0])  # Much more stable than standard version
+        #print(logth.shape, final_dist.log_prob(xi).shape)
+        log_prob1 = final_dist.log_prob(xi) + logth 
+        #print(th)
         #print(log_prob1.shape)
         #raise ValueError
-        if self.transforms:
-            for transform in self.transforms:
-                x, ldj = transform(x)
-                log_prob1 += ldj
+        
 
         # No need to evaluate this value
         log_prob2 = torch.zeros(x.shape[0], device=x.device)
 
-        return log_prob1, log_prob2, x
+        return [log_prob1], [log_prob2], [th]
 
     def sample(self, num_samples):
         raise NotImplementedError
-        #z = self.base_dist.sample(num_samples)
-        #z1, z2 = torch.split(z, (2,2), dim = 1)
-
-        #for transform in reversed(self.transforms):
-        #    z = transform.inverse(z)
 
         #return z
 
     def inversed(self, z):
         raise NotImplementedError
+        #for transform in reversed(self.transforms):
+        #    z = transform.inverse(z)
+        #z = torch.clamp(z, min=0.01)
+        #return z
 
+class GaussianModel_w(Flow):
+
+    """
+    For Gaussian Coupla Approximation
+    Without one-to-one transformation 
+    """
+
+    def __init__(self, base_dist, dim):
+        """
+        transforms: YJ transforms 
+        """
+        super(Flow, self).__init__()
+        assert isinstance(base_dist, Distribution)
+        # if isinstance(transforms, Transform): transforms = [transforms]
+        # assert isinstance(transforms, Iterable)
+        # assert all(isinstance(transform, Transform) for transform in transforms)
+        self.base_dist = base_dist  # Should be independent Gaussian
+
+        self.lower_tri = nn.Parameter(data=torch.rand(int(dim * (dim-1)/2),))
+        self.tril_ind = torch.tril_indices(dim, dim, -1)  # Stores param
+        self.mu = nn.Parameter(data=torch.rand(dim))
+        self.lt_gamma = nn.Parameter(data=torch.rand(dim))
+        self.g = nn.Parameter(data=torch.rand(dim))
+
+
+    def log_prob(self, x, ladder=1):
+        """
+        log_prob1 : final log probability of the generated samples
+        log_prob2 : log p_{z} values
+        """
+        #print(x.shape)
+        lower_fake_param = torch.zeros(x.shape[1], x.shape[1], device=x.device) + torch.eye(x.shape[1], device=x.device)
+        lower_fake_param[self.tril_ind[0, :], self.tril_ind[1, :]] = self.lower_tri.to(x.device)
+
+        lower_fake_param = lower_fake_param[None, :, :].repeat(x.shape[0], 1, 1)
+        Bz = torch.matmul(lower_fake_param, x[:, :, None])
+        xi = self.mu.to(x.device) + Bz[:, :, 0]
+        
+        th = xi 
+        logth = 0.0
+        # IGH transform
+        xi = self.mu.to(x.device) + Bz[:, :, 0]
+        #h = torch.sigmoid(self.lt_gamma.to(x.device)-3500)
+        
+        #h = h[None, :].repeat(x.shape[0], 1)
+        #g = self.g[None, :].repeat(x.shape[0], 1).to(x.device) / 100 #5
+        #print(self.g)
+        #th = (torch.exp(g*xi) - 1) * torch.exp(h * torch.pow(xi, 2) / 2) / g 
+        #logth = torch.exp(g*xi + h * torch.pow(xi, 2) / 2) + h * xi * th 
+        #logth = -1 * torch.log(logth)
+        #logth = torch.sum(logth, dim=1)
+        #print(logth)
+
+        final_dist = MultivariateNormal(loc=self.mu.to(x.device), scale_tril=lower_fake_param[0])  # Much more stable than standard version
+        #print(logth.shape, final_dist.log_prob(xi).shape)
+        log_prob1 = final_dist.log_prob(xi) #+ logth 
+        #print(th)
+
+        th = xi 
+
+        # No need to evaluate this value
+        log_prob2 = torch.zeros(x.shape[0], device=x.device)
+
+        return [log_prob1], [log_prob2], [th]
+
+    def sample(self, num_samples):
+        raise NotImplementedError
+
+        #return z
+
+    def inversed(self, z):
+        raise NotImplementedError
         #for transform in reversed(self.transforms):
         #    z = transform.inverse(z)
         #z = torch.clamp(z, min=0.01)
@@ -507,7 +615,7 @@ def Build_Transform(D = 4, P = 2, num_flows = 8, affine = True):
     transforms.pop()
     return transforms
 
-from .layers import Shuffle_with_Order, Order_Shuffle, create_3dim_sort, create_5dim_sort, create_7dim_sort, create_11dim_sort
+from .layers import Shuffle_with_Order, Order_Shuffle, create_3dim_sort, create_5dim_sort, create_6dim_sort, create_7dim_sort, create_11dim_sort
 
 def Build_Shuffle_Order_Transform(D = 10, P = 2, num_flows = 8, steps =4, affine = True):
     Shuffle_list = []
@@ -1308,23 +1416,37 @@ def Build_Spline_Transform(D = 4, num_bin = 10, num_flows = 8):
     transforms = []
     P = num_bin * 3 + 1
 
-
-    #transforms.append(Sigmoid())
-    #transforms += [ShiftBijection(shift=torch.tensor([[1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5]]))]
-    #transforms += [ScaleBijection(scale=torch.tensor([[1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3,
-    #                                                   1 / 3, 1 / 3, 1 / 3, 1 / 3, 1 / 3]]))]
-
     for flow_idx in range(num_flows):
         transforms.append(ActNormBijection(D, data_dep_init=False))
-        net = nn.Sequential(ND_2MLP(D//2, D//2 *P,
-                                hidden_units=hidden_units,
-                                activation=activation),
-                            ElementwiseParams(P))
-        net.apply(init_weights)
-        transforms.append(RationalQuadraticSplineCouplingBijection(coupling_net=net, num_bins=num_bin))
+        #net.apply(init_weights)
+        transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
+            features=D, hidden_features=256, context_features=None,
+            num_bins=num_bin, dropout_probability=0.1,
+            tails='linear', use_residual_blocks=False
+        ))
         transforms.append(Shuffle_list[flow_idx])
     return transforms
 
+
+def Build_Spline_Order_3_Transform(D = 3, P = 2, num_flows = 6, num_bin=16):
+    Shuffle_list = []
+    idx = create_3dim_sort()
+    for j in range(num_flows):
+        Shuffle_list.append(Order_Shuffle(order=idx[j%3][0], dim=1))
+
+    transforms = []
+
+    for flow_idx in range(num_flows):
+        transforms.append(ActNormBijection(D, data_dep_init=False))
+        #net.apply(init_weights)
+        transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
+            features=D, hidden_features=256, context_features=None,
+            num_bins=num_bin,
+            tails='linear', use_residual_blocks=True
+        ))
+        transforms.append(Shuffle_list[flow_idx])
+
+    return transforms
 
 def Build_Spline_Order_5_Transform(D = 3, P = 2, num_flows = 6, num_bin=16):
     Shuffle_list = []
@@ -1350,6 +1472,27 @@ def Build_Spline_Order_5_Transform(D = 3, P = 2, num_flows = 6, num_bin=16):
     return transforms
 
 from .autoregressive import MaskedPiecewiseRationalQuadraticAutoregressiveTransform
+
+def Build_Spline_Order_6_Transform(D = 6, P = 2, num_flows = 6, num_bin=16):
+    Shuffle_list = []
+    idx = create_6dim_sort()
+
+    for j in range(num_flows):
+       Shuffle_list.append(Order_Shuffle(order=idx[j%4][0], dim=1))
+
+    transforms = []
+    P = num_bin * 3 + 1
+
+    for flow_idx in range(num_flows):
+        transforms.append(ActNormBijection(D, data_dep_init=False))
+        transforms.append(MaskedPiecewiseRationalQuadraticAutoregressiveTransform(
+            features=D, hidden_features=128, context_features=None,
+            num_bins=num_bin,
+            tails='linear', use_residual_blocks=True
+        ))
+        transforms.append(Shuffle_list[flow_idx])
+
+    return transforms
 
 def Build_Spline_Order_11_Transform(D = 3, P = 2, num_flows = 6, num_bin=16):
     Shuffle_list = []

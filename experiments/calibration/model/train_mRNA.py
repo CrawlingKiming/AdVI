@@ -41,6 +41,7 @@ assert args.dataset == "mRNA"
 assert args.model_num == 1
 
 for model_num in range(args.model_num):
+
     args.batch_size = real_batch
     torch.cuda.empty_cache()
     start = time.time()
@@ -92,8 +93,8 @@ for model_num in range(args.model_num):
                                                                                                model_num)))
                 print('')
 
-    except NotImplementedError as e:
-    #except Exception as e:
+    #except NotImplementedError as e:
+    except Exception as e:
         print('')
         print("Error_{} occured".format(e))
-        continue
+    #    continue

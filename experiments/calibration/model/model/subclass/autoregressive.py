@@ -339,7 +339,7 @@ class MaskedPiecewiseRationalQuadraticAutoregressiveTransform(AutoregressiveTran
                  use_residual_blocks=True,
                  random_mask=False,
                  activation=F.relu,
-                 dropout_probability=0.,
+                 dropout_probability=0.1,
                  use_batch_norm=False,
                  min_bin_width=splines.rational_quadratic.DEFAULT_MIN_BIN_WIDTH,
                  min_bin_height=splines.rational_quadratic.DEFAULT_MIN_BIN_HEIGHT,

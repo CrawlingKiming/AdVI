@@ -153,10 +153,16 @@ class MSIR(torch.nn.Module):
 def ODE_Solver(params, tt, model, args, t_end = None, initial_params =None):
     #gt : t, dimension
     #params : B , D
-    B = params.shape[0]
-    use_params = params[:, 0:2]
-    beta_params = params[:, 4:]
-    assert beta_params.shape[1] == 6
+    if len(params.shape) == 1:
+        print(params.shape)
+        use_params = params[0:2]
+        beta_params = params[4:]
+        B = 1
+    else: 
+        B = params.shape[0]
+        use_params = params[:, 0:2]
+        beta_params = params[:, 4:]
+        assert beta_params.shape[1] == 6
 
     n_age = 6
     N = 324935

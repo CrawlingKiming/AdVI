@@ -73,8 +73,8 @@ class ShiftBijection(Bijection):
         self.register_buffer('shift', shift)
 
     def forward(self, x):
-        z = x + self.shift
         #print(self.shift)
+        z = x + self.shift
         ldj = x.new_zeros(x.shape[0])
         return z, ldj
 
@@ -217,6 +217,7 @@ def compute_idx(dim_size, num, per):
 
 
 def create_3dim_sort():
+    shuffle_list=[torch.tensor([[0, 1, 2]]), torch.tensor([[2, 0, 1]]), torch.tensor([[1, 2, 0]])]
     shuffle_list=[torch.tensor([[0, 1, 2]]), torch.tensor([[2, 0, 1]]), torch.tensor([[1, 2, 0]]), torch.tensor([[1, 2, 0]]),
                   torch.tensor([[1, 2, 0]]), torch.tensor([[2, 0, 1]]), torch.tensor([[0, 2, 1]]), torch.tensor([[2, 0, 1]]),
                   torch.tensor([[2, 1, 0]]), torch.tensor([[0, 1, 2]]), torch.tensor([[0, 1, 2]])]
@@ -227,6 +228,10 @@ def create_5dim_sort():
                     torch.tensor([[4, 1, 3, 0, 2]]), torch.tensor([[2, 0, 4, 1, 3]]), torch.tensor([[2, 4, 1, 0, 3]]),
                     torch.tensor([[3, 1, 0, 2, 4]]), torch.tensor([[0, 1, 4, 2, 3]]), torch.tensor([[0, 3, 2, 4, 1]]),
                     torch.tensor([[4, 2, 1, 3, 0]])]
+    return shuffle_list
+
+def create_6dim_sort():
+    shuffle_list = [torch.tensor([[5, 1, 3, 0, 2, 4]]), torch.tensor([[0, 2, 4, 3, 5, 1]]), torch.tensor([[3, 1, 5, 2, 0, 4]]), torch.tensor([[0, 2, 3, 1, 5, 4]])]
     return shuffle_list
 
 def create_7dim_sort():
@@ -243,9 +248,10 @@ def create_11dim_sort():
 
 if __name__ == "__main__":
 
+
     Shuffle_list = []
     dim_size = 11
-    s, t = compute_idx(11,4,1)
+    s, t = compute_idx(6,4,1)
     print(s)
     print(t)
 

@@ -20,12 +20,12 @@ class SIR(torch.nn.Module):
         I = z[:,[1]]
         R = z[:,[2]]
 
-        zero_tensor = torch.zeros(beta.shape)
-        #zero_tensor.get_device()
+        zero_tensor = torch.zeros(beta.shape, device=z.device)
+        N = S + I + R
+        #N = 300
         with torch.set_grad_enabled(True):
-
-            dS = -1 *beta * S * I / 100
-            dI = beta * S * I / 100 - gamma * I
+            dS = -1 *beta * S * I / N
+            dI = beta * S * I / N - gamma * I
             dR = gamma * I
 
             z_t = torch.cat((dS, dI, dR), 1)
@@ -53,7 +53,10 @@ def ODE_Solver(gt, params, tt, model):
     z_samples, _ = odeint(
         func,
         (gt, params),
-        tt
+        tt,
+        atol = 0.0001,
+        rtol = 0.0001,
+        method="dopri5"
     )
     return z_samples
 

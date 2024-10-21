@@ -47,15 +47,15 @@ class Experiment_Writing():
 
     def forward_img_store(self, samples, truex, data_ground, burden_estimate, model_num):
         #ylim_upper = np.load("../data/Extra/forplot.npy")
-        samples, cases_prob, new_r = samples
+        samples, cases_prob, new_r, _ = samples
         B = samples.shape[0]
 
         res = []
-
+         
         nb = torch.distributions.negative_binomial.NegativeBinomial(total_count=new_r, probs=cases_prob)
         n = 40
         data_samples = nb.sample((n,))  # n * B * 118 * 6
-        data_samples = data_samples.view((n * 500, 118, 6))
+        data_samples = data_samples.view((n * B, 118, 6))
 
         data_ground = np.sum(data_ground, axis=2)
         samples_min, samples_mean, samples_max = hpd_return(np.sum(data_samples.detach().cpu().numpy(), axis=2))#
@@ -75,16 +75,20 @@ class Experiment_Writing():
         ax.plot(samples_max[:], "--", color="red")
 
         ax.plot(data_ground[0][:], "bo", markersize=2)
-        ax.set_xlabel('Weeks', fontsize=22)
-        ax.set_ylabel('Severe cases (All)', fontsize=22)
-        #ax.set_ylim([0, ylim_upper[model_num]])
-        ax.tick_params(axis='both', which='major', labelsize=18)
+        ax.set_xlabel('Weeks', fontsize=26)
+        ax.set_ylabel('Severe cases (All)', fontsize=26)
+        ax.set_ylim([0, 310])#ylim_upper[model_num]
+        ax.tick_params(axis='both', which='major', labelsize=22)
         #ax.tick_params(axis='both', which='minor', labelsize=17)
         # plt.show()
         plt.savefig(os.path.join(self.log_path, "png/Forwardsamples_model_num{}.png".format(model_num)),
                     bbox_inches='tight')
         plt.close(fig=fig)
 
+        MSPE1 = np.mean(np.square(np.sum(data_samples.detach().cpu().numpy(),axis=2) - data_ground[0][:]))
+        ATL1 = np.mean((samples_max-samples_min))
+        res.append(MSPE1)
+        res.append(ATL1)
         groundtruth_sum = np.sum(burden_estimate, axis=2)
         samples_sum = np.sum(samples, axis=2)
         #samples_sum_min, samples_sum_mean, samples_sum_max = q_return(samples_sum)
@@ -98,22 +102,29 @@ class Experiment_Writing():
                 cover_num += 1
         print(cover_num)
         res.append(cover_num)
-        ylim = [[0.0, 140]]
+        ylim = [[0.0, 160]]
         fig, ax = plt.subplots()
 
         ax.plot(samples_sum_mean[:], color="red")
         ax.plot(samples_sum_min[:], "--", color="red")
         ax.plot(samples_sum_max[:], "--", color="red")
         ax.plot(groundtruth_sum[0][:], color="green")
-        ax.set_xlabel('Time (weeks)', fontsize=22)
-        ax.set_ylabel('Disease Burden (All)', fontsize=22)
+        ax.set_xlabel('Time (weeks)', fontsize=26)
+        ax.set_ylabel('Disease Burden (All)', fontsize=26)
         ax.set_ylim(ylim[-1])
-        ax.tick_params(axis='both', which='major', labelsize=18)
+        ax.tick_params(axis='both', which='major', labelsize=22)
         #ax.tick_params(axis='both', which='minor', labelsize=17)
 
         plt.savefig(os.path.join(self.log_path, "png/BurdenEstimate_model_num{}.png".format(model_num)),
                     bbox_inches='tight')
         plt.close(fig=fig)
+
+        MSPE2 = np.mean(np.square(samples_sum - groundtruth_sum[0]))
+        ATL2 = np.mean((samples_sum_max-samples_sum_min))
+        res.append(MSPE2)
+        res.append(ATL2)
+
+
         return res
 
     def param_img_store(self, params, model_num):
@@ -129,46 +140,46 @@ class Experiment_Writing():
         fig, axs = plt.subplots(3, 4, constrained_layout=True)
         # fig.suptitle('MSIR function')
         alpha = 1.0
-        axs[0, 0].hist(temp[:, 0], bins=128, color='gray', alpha=alpha)
+        axs[0, 0].hist(temp[:, 0], bins=50, color='gray', alpha=alpha)
         axs[0, 0].set_title(r'$w$')
         axs[0, 0].set_xlim([0.2, 0.7])
         axs[0, 0].axvline(x=0.43, color="r")
-        axs[0, 1].hist(temp[:, 1], bins=128, color='gray', alpha=alpha)
+        axs[0, 1].hist(temp[:, 1], bins=50, color='gray', alpha=alpha)
         axs[0, 1].set_title(r"$\phi$")
         axs[0, 1].set_xlim([6.0, 8.8])
         axs[0, 1].axvline(x=7.35, color="r")
-        axs[0, 2].hist(temp[:, 2], bins=128, color='gray', alpha=alpha)
+        axs[0, 2].hist(temp[:, 2], bins=50, color='gray', alpha=alpha)
         axs[0, 2].set_title(r'$\rho$')
         axs[0, 2].set_xlim([0.0, 0.05])
         axs[0, 2].axvline(x=0.027, color="r")
         axs[0, 3].set_title(r'$\nu$')
         axs[0, 3].set_xlim([0.5, 1.0])
         axs[0, 3].axvline(x=0.9, color="r")
-        axs[0, 3].hist(temp[:, 3], bins=128,color='gray', alpha=alpha)
+        axs[0, 3].hist(temp[:, 3], bins=50,color='gray', alpha=alpha)
         axs[1, 0].set_title(r'$\beta_{01}$')
         axs[1, 0].set_xlim([0.0, 3.0])
         axs[1, 0].axvline(x=true_beta[0], color="r")
-        axs[1, 0].hist(temp[:, 4], bins=128, color='gray', alpha=alpha)
+        axs[1, 0].hist(temp[:, 4], bins=50, color='gray', alpha=alpha)
         axs[1, 1].set_title(r'$\beta_{02}$')
         axs[1, 1].set_xlim([0.5, 4.0])
         axs[1, 1].axvline(x=true_beta[1], color="r")
-        axs[1, 1].hist(temp[:, 5], bins=128, color='gray', alpha=alpha)
+        axs[1, 1].hist(temp[:, 5], bins=50, color='gray', alpha=alpha)
         axs[1, 2].set_title(r'$\beta_{03}$')
         axs[1, 2].set_xlim([0.0, 2.0])
         axs[1, 2].axvline(x=true_beta[2], color="r")
-        axs[1, 2].hist(temp[:, 6], bins=128, color='gray', alpha=alpha)
+        axs[1, 2].hist(temp[:, 6], bins=50, color='gray', alpha=alpha)
         axs[1, 3].set_title(r'$\beta_{04}$')
         axs[1, 3].set_xlim([1.5, 4.0])
         axs[1, 3].axvline(x=true_beta[3], color="r")
-        axs[1, 3].hist(temp[:, 7], bins=128, color='gray', alpha=alpha)
+        axs[1, 3].hist(temp[:, 7], bins=50, color='gray', alpha=alpha)
         axs[2, 0].set_title(r'$\beta_{05}$')
         axs[2, 0].set_xlim([0.0, 2.5])
         axs[2, 0].axvline(x=true_beta[4], color="r")
-        axs[2, 0].hist(temp[:, 8], bins=128,color='gray', alpha=alpha)
+        axs[2, 0].hist(temp[:, 8], bins=50,color='gray', alpha=alpha)
         axs[2, 1].set_title(r'$\beta_{06}$')
         axs[2, 1].set_xlim([0.0, 1.3])
         axs[2, 1].axvline(x=true_beta[5], color="r")
-        axs[2, 1].hist(temp[:, 9], bins=128, color='gray', alpha=alpha)
+        axs[2, 1].hist(temp[:, 9], bins=50, color='gray', alpha=alpha)
 
         fig.delaxes(axs[2, 2])
         fig.delaxes(axs[2, 3])

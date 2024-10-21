@@ -30,11 +30,15 @@ def PSIS_sampling(rs):
     assert len(ws_M) == M
     ws_m = ws[:S-M]
     k, loc, scale = genpareto.fit(ws_M)
-    #k = (M*k + 50 * 0.5) / (M + 50),
+    k = (M*k + 50 * 0.5) / (M + 50)
+    #print(ws_M, k)
+    
     #print(k, loc, scale)
     z = np.linspace(start=1, stop=M, num=M)
-
-    incdf = genpareto.ppf((z-0.5)/M, k, loc=loc, scale=scale)
+    #k = -1 * k 
+    #print(ws[S-M], scale, k)
+    incdf = ws[S-M] + ((1- (z-0.5)/M)**(-k)-1)*scale / k
+    #incdf = genpareto.ppf((z-0.5)/M, k, loc=loc, scale=scale)
     incdf = np.minimum(incdf, max(ws))
     ws = np.concatenate((ws_m, incdf))
 
@@ -81,6 +85,11 @@ CONST_INV_SQRT_2PI = 1 / math.sqrt(2 * math.pi)
 CONST_INV_SQRT_2 = 1 / math.sqrt(2)
 CONST_LOG_INV_SQRT_2PI = math.log(CONST_INV_SQRT_2PI)
 CONST_LOG_SQRT_2PI_E = 0.5 * math.log(2 * math.pi * math.e)
+
+if __name__ == "__main__":
+    M = 100
+    z = np.linspace(start=1, stop=10, num=M) * 0.2 
+    print(PSIS_sampling(z))
 
 
 class TruncatedStandardNormal(Distribution):

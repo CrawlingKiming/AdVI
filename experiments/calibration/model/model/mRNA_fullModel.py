@@ -27,15 +27,27 @@ class mRNA(torch.nn.Module):
         params = states[1]
 
         # B, 1
-        th_1 = params[:, [0]]
-        th_2 = params[:, [1]]
-        th_3 = params[:, [2]]
-        th_4 = params[:, [3]]
-        th_5 = params[:, [4]]
-        th_6 = params[:, [5]]
-        th_7 = params[:, [6]]
-        th_8 = params[:, [7]]
-        th_9 = params[:, [8]]
+        th_2 = params[:, [0]]
+        th_3 = params[:, [1]]
+        th_5 = params[:, [2]]
+        th_6 = params[:, [3]]
+        B = th_2.shape[0]
+
+        th_1 = 0.04382958 *torch.ones(size=(B,1), device=params.device)
+        th_4 = 0.11033000 *torch.ones(size=(B,1), device=params.device)
+        th_7 = 0.2172353 *torch.ones(size=(B,1), device=params.device)
+        th_8 = 6.157514 *torch.ones(size=(B,1), device=params.device)
+        th_9 = 11.131565  *torch.ones(size=(B,1), device=params.device)
+
+        #th_1 = params[:, [0]]
+        #th_2 = params[:, [1]]
+        #th_3 = params[:, [2]]
+        #th_4 = params[:, [3]]
+        #th_5 = params[:, [4]]
+        #th_6 = params[:, [5]]
+        #th_7 = params[:, [6]]
+        #th_8 = params[:, [7]]
+        #th_9 = params[:, [8]]
 
         # B, 1
         Y = z[:, [0]]
@@ -69,7 +81,7 @@ def ODE_Solver(params, tt, model, args, t_end = None, initial_params =None):
     func = model.to(args.device)
     tt = tt.to(args.device)
 
-    final_params = params[:, :9]
+    final_params = params[:, :4]
     z_samples, _ = odeint(
         func,
         (z0, final_params),

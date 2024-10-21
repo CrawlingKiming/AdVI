@@ -46,7 +46,7 @@ def HPD(args, samples, model_num):
             param_cov = 0
 
             temp_hpd, _, _, temp_modes = hpd_grid(sample=temp[:, j], alpha=0.05)
-            tm = np.mean(np.square(np.mean(temp[:, j]) - true[j]*1e2)) #/ temp.shape[0]
+            tm = np.mean(np.square((temp[:, j]) - true[j]*1e2)) #/ temp.shape[0]
             a, b = temp_hpd[0]
             c = temp_modes[0]
             hpd_l.append(a/1e2)
@@ -117,19 +117,19 @@ print(log_path)
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
-
+print(filenames)
 for f in filenames:
     try:
         truex, data_shape = get_data(args, model_num=ii)
         ii += 1
-        if ii != 47:
-            continue
+        #if ii != 47:
+        #    continue
 
         data_path = os.path.join(log_path, f)
         param_sample = np.genfromtxt(data_path, delimiter=',', skip_header=True)
         param_sample[:, [3, 2]] = param_sample[:, [2, 3]]
         #test_data = torch.tensor(test_data[1:], dtype=torch.float)
-
+        #print(param_sample.shape)
         #forward_results
         thinned_sample = param_sample[np.linspace(0, param_sample.shape[0]-1, num=500).astype(int), :]
         #print(thinned_sample.shape)
@@ -141,9 +141,9 @@ for f in filenames:
         #param_results
         param_sample = param_sample[np.linspace(0, param_sample.shape[0] - 1, num=5000).astype(int), :]
         tl, tr, tmu, tmse, tcoverage = HPD(args, [param_sample], model_num=ii-1)
-        print(res)
-
-    except Exception as e:
+        #print(res)
+    except NotImplementedError as e:
+    #except Exception as e:
         print("Failed account {}".format(ii))
         continue
 

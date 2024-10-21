@@ -36,29 +36,32 @@ model_id = get_model_id(args)
 ## Training ##
 exp_writer = SIR_Experiment_Writing(args, data_id, model_id)
 real_batch = args.batch_size
+args.model_num = 22 
+assert (args.model_num == 22)
 assert args.dataset == "SIR"
 
-for model_num in range(1, args.model_num):
+for model_num in range(21, args.model_num):
     args.batch_size = real_batch
     torch.cuda.empty_cache()
     start = time.time()
     mycan, model = get_model(args, data_shape=data_shape)
     truex, data_shape = get_data(args, model_num=model_num)
-
+    #obs_y, obs_r = truex 
+    trun_truex = truex[:,:model_num, :]
     model = model.to(torch.float)
     optimizer = Adam(list(model.parameters()), lr=args.lr)
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
-                                            lr_lambda=lambda epoch: 0.992 ** epoch)
+                                            lr_lambda=lambda epoch: 0.99 ** epoch)
 
-    groundtruth = np.load("../data/SIR/SIR.npy")
+    groundtruth = truex 
     try:
         for itr in range(args.iteration):
-            if itr> 60 :
-                args.batch_size = 256
-            loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
+            loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=trun_truex, args=args, itr=itr)
+            if itr > 149:
+                args.batch_size = 512
+            
             if itr != 0:
-
                 loss.backward()
                 max_norm = 4e-3
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
@@ -69,14 +72,13 @@ for model_num in range(1, args.model_num):
             runtime = end - start
             exp_writer.loss_store(loss=loss, nll=nll, itr=itr, time=runtime, model_num=model_num)
 
-            #args.lr *= 0.90
             if itr % args.eval_every == 0:
 
-                samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, eval=True, itr=itr)
+                samples = loss_fn(can_model=mycan, model=model, observation=trun_truex, args=args, eval=True, itr=itr)
 
                 exp_writer.forward_img_store(samples, truex, groundtruth, model_num, itr)
 
-                params_ls, _, _, _ = mycan(num_samples=5000, model=model)
+                params_ls, _, _ = mycan(num_samples=5000, model=model)
                 exp_writer.param_img_store(params_ls, model_num=model_num, itr=itr)
                 now = datetime.now()
 
@@ -90,8 +92,8 @@ for model_num in range(1, args.model_num):
                                  '{}_checkpoint_date{}_itr{}_modelnum{}.pt'.format(model_num, dt_string, itr, model_num)))
                 print('')
 
-    #except ValueError as e:
-    except Exception as e:
+    #except Exception as e:
+    except NotImplementedError as e:
         print('')
         print("Error_{} occured".format(e))
         continue

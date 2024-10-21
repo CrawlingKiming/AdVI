@@ -67,6 +67,7 @@ class BoundSurjection(Surjection):
         self.lb = a
 
     def forward(self, z):
+        raise NotImplementedError
 
         z = torch.clamp(z, min = -1.75, max = 1.75)
         x = self.bound_function(z)
@@ -123,9 +124,10 @@ class BoundSurjection_S(Surjection):
         x, s1mask = self.bound_function(z)
         #z_p1 = self.sig_ldj(z)
         xx = x.clone()#.detach()
-        x_p1 = self.sig_ldj(xx)
-
+        x_p1 = self.sig_ldj(xx) - 1e-6 # for numerical stability 
+        #print(x_p1)
         p = s1mask * torch.log(x_p1) + (1-s1mask)*torch.log(1-x_p1)
+        #print(p)
         #ldj = torch.log(p)
         ldj = torch.sum(p, dim=1)
         return x, ldj
@@ -153,7 +155,7 @@ class BoundSurjection_S(Surjection):
         return tempz, s1mask#,overbounded
 
     def sig_ldj(self, z):
-        return torch.sigmoid_(10 * (-1 * torch.abs(z) + 1.5))
+        return torch.sigmoid_(4 * (-1 * torch.abs(z) + 2.0)) 
 
 
 class BoundSurjection_sig(Surjection):

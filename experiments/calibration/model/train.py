@@ -30,6 +30,8 @@ add_data_args(parser)
 #adds model settings
 add_model_args(parser)
 
+parser.add_argument('--prior_mis', type=bool, default=False)
+
 args = parser.parse_args()
 #set_seeds(args.seed)
 
@@ -54,20 +56,20 @@ model_id = get_model_id(args)
 
 exp_writer = Experiment_Writing(args, data_id, model_id)
 real_batch = args.batch_size
-
-for model_num in range(0, args.model_num):
+args.rej_const= False
+for model_num in range(0, args.model_num): #
     args.batch_size = real_batch
-
+    #print(args.device)
     torch.cuda.empty_cache()
     start = time.time()
     truex, data_shape = get_data(args, model_num=model_num)
 
     mycan, model = get_model(args, data_shape=data_shape) # on args.device
     optimizer = Adam(list(model.parameters()), lr=args.lr)
-
-    scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.01, total_iters=20)
+    #optimizer2 = Adam(list(mycan.parameters()), lr=args.lr)
+    #scheduler1 = torch.optim.lr_scheduler.ConstantLR(optimizer=optimizer, factor=0.01, total_iters=20)
     scheduler2 = torch.optim.lr_scheduler.LambdaLR(optimizer=optimizer,
-                                            lr_lambda=lambda epoch: 0.996 ** epoch)
+                                            lr_lambda=lambda epoch: 0.992 ** epoch) # 0.996 0205
     scheduler = scheduler2 #torch.optim.lr_scheduler.SequentialLR(optimizer, schedulers=[scheduler2], milestones=[20])
     # BLOCKED
     # SCHEDULERERERERER
@@ -76,6 +78,7 @@ for model_num in range(0, args.model_num):
 
     if args.resume :
         log_path, filenames = read_model.read_file(args)
+
         model_path = os.path.join(log_path, filenames[0])
         checkpoint = torch.load(model_path)
         model.load_state_dict(checkpoint['state_dict1'])
@@ -84,27 +87,24 @@ for model_num in range(0, args.model_num):
 
         lambd = np.load("../data/MSIR_lambda.npy")
         groundtruth = np.load("../data/ground_truth.npy")
-        st_itr = 300
+        st_itr = 350
 
     try:
         for itr in range(st_itr, args.iteration):
-            if itr > 299:
+            
+            if itr > 345 and args.AIS:
+                
                 args.batch_size = 256
+                loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
 
-            #model.train()
-            loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
-
+            else:
+                loss, nll, samples = loss_fn(can_model=mycan, model=model, observation=truex, args=args, itr=itr)
             if itr != 0:
-                #if itr == 224:
-                #    for m_la in range(10*3):
-                #        for param in model.transforms[m_la].parameters():
-                #            param.requires_grad = False
+
                 loss.backward()
                 max_norm = 4e-3
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-
-                if itr in [224, 225, 226, 299, 300, 301]: # mom.
-                    optimizer.zero_grad()
+                param_list = []
 
                 optimizer.step()
                 scheduler.step()
@@ -132,12 +132,14 @@ for model_num in range(0, args.model_num):
 
                     exp_writer.forward_img_store(samples, truex, groundtruth, model_num, itr)
 
-                    params_ls, _, _, _ = mycan(num_samples=5000, model=model, param=True)
+                    params_ls, _, _ = mycan(num_samples=5000, model=model, param=True)
                     exp_writer.param_ls_img_store(params_ls, model_num=model_num, itr=itr)
 
                     now = datetime.now()
 
                     # dd/mm/YY H:M:S
+                    exp_writer.model_store(model_num, itr, optimizer, scheduler, model)
+                    """
                     dt_string = now.strftime("%d.%m.%Y %H.%M.%S")
                     torch.save({
                         'model_num': model_num,
@@ -148,9 +150,10 @@ for model_num in range(0, args.model_num):
                         'scheduler': scheduler.state_dict()},
                                 os.path.join("./results/MSIR/model", '{}_checkpoint_date{}_itr{}_modelnum{}.pt'.format(model_num, dt_string,itr, model_num)))
                     print('')
+                    """
 
-    except NotImplementedError as e:
-    #except Exception as e:
+    #except NotImplementedError as e:
+    except Exception as e:
         print('')
         print("Error_{} occured".format(e))
         continue
